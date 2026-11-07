@@ -5,7 +5,7 @@
  * broken internal links or anchors, missing sitemap entries, missing assets,
  * executable inline code, external resources, or a weakened CSP.
  */
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -322,7 +322,7 @@ for (const required of [
   "Permissions-Policy:",
   "Cross-Origin-Opener-Policy: same-origin",
   "Cross-Origin-Resource-Policy: same-origin",
-  "Strict-Transport-Security:",
+  "Strict-Transport-Security: max-age=31536000; includeSubDomains",
   "Content-Security-Policy:",
 ]) {
   if (!headers.includes(required)) fail(`_headers: missing ${required}`);
@@ -361,6 +361,13 @@ for (const asset of [
   "scripts/check.mjs",
 ]) {
   if (!existsSync(join(ROOT, asset))) fail(`missing ${asset}`);
+}
+
+const distDir = join(ROOT, "dist");
+if (existsSync(distDir)) {
+  for (const forbidden of ["package.json", "README.md", "SECURITY.md", "LICENSE", "scripts"]) {
+    if (readdirSync(distDir).includes(forbidden)) fail(`dist/: leaked non-public file ${forbidden}`);
+  }
 }
 
 if (issues.length > 0) {

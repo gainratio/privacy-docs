@@ -16,10 +16,11 @@ The check fails on missing metadata, JSON-LD, HTML structure, broken internal li
 
 ## Deploy
 
-The site is plain static files. Serve the repository root — or upload it to any static host — and apply `_headers` at the edge. The `_headers` file uses Cloudflare Pages syntax. One deployment path, if your Pages project is named `privacy-docs`:
+Run `npm run build && npm run check` to build `dist/` (containing only the public web assets) and apply `_headers` at the edge. The `_headers` file uses Cloudflare Pages syntax. One deployment path, if your Pages project is named `privacy-docs`:
 
 ```sh
-npx wrangler pages deploy . --project-name privacy-docs --branch main
+npm run build && npm run check
+npx wrangler pages deploy dist --project-name privacy-docs --branch main
 ```
 
 Attach `privacy.gainratio.com` in the host's dashboard, then verify the response headers and the canonical URLs after the deploy. `_headers` is only honored by hosts that support that file format.
