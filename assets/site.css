@@ -894,6 +894,12 @@ th code {
   pre {
     padding: 14px;
     font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  pre code {
+    white-space: inherit;
   }
 
   .edge-code {

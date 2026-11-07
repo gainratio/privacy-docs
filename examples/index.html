@@ -61,7 +61,7 @@
   <div class="docs-body">
     <p class="eyebrow">Examples</p>
     <h1>Copy it. Run it. Watch the labels.</h1>
-    <p class="lede">Every example here uses the public API. The outputs shown are the documented runs: the README quickstart, the API docs receipts example, and the repository checks. Nothing is a mock-up, and no output is invented.</p>
+    <p class="lede">Every example here uses the public API. The outputs shown come from the README quickstart and a run of the detection script; the receipts section describes its output rather than printing digests that depend on the input and ruleset. Nothing is a mock-up.</p>
     <div class="note">These examples target <code>@gainratio/privacy-core</code> 0.3.2. Everything except the real-model section runs offline with no API key.</div>
 
     <h2 id="quickstart">Quickstart: the four-step loop</h2>
@@ -128,7 +128,7 @@ DATE "01/14/2026" 78 88</code></pre>
 const provider = new NoLLMProvider();
 await provider.complete("my card is 4242 4242 4242 4242");</code></pre>
     <p>The compiler reports:</p>
-    <pre><code>oops.ts(4,25): error TS2345: Argument of type 'string' is not assignable to parameter of type 'RedactedPayload'.
+    <pre class="output"><code>oops.ts(4,25): error TS2345: Argument of type 'string' is not assignable to parameter of type 'RedactedPayload'.
   Type 'string' is not assignable to type 'Branded&lt;"RedactedPayload"&gt;'.</code></pre>
     <p>The line and column depend on your file; the rejection is the point. TypeScript’s brand disappears at runtime, so the guard is enforced a second way: every approved payload is registered by object identity, and a hand-built or spread-cloned look-alike is refused by <code>assertApproved</code> before any network call. That is the <code>UnapprovedPayloadError</code> in the receipts example.</p>
 

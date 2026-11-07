@@ -67,14 +67,15 @@
     <div class="note">This page is sourced from <a href="https://github.com/gainratio/privacy-core/blob/main/SECURITY.md">SECURITY.md</a> and <a href="https://github.com/gainratio/privacy-core/blob/main/docs/ARCHITECTURE.md">docs/ARCHITECTURE.md</a>. If this page and the repository disagree, the repository wins.</div>
 
     <h2 id="promise">The promise</h2>
-    <p>The whole design is stated plainly in SECURITY.md: raw private text never crosses the wire. Detection, the vault and rehydration run on the device; only an approved, labelled payload is sendable. The documented limit sits on top of that promise: values outside the fixed ruleset are not detected, so the review step is what catches the rest.</p>
+    <p>The whole design is stated plainly in SECURITY.md: raw private text never crosses the wire. Detection, the vault and rehydration run on the device; only a payload the guard minted is sendable. The documented limit sits on top of that promise: values outside the fixed ruleset are not detected, so the review step is what catches the rest.</p>
     <ul class="checks">
       <li><strong>Only placeholders for recognized values leave.</strong> The provider call receives the text the reviewer approved, with detected values replaced by labels like <code>[CARD_1]</code>.</li>
-      <li><strong>The send is type-enforced.</strong> Provider adapters accept only a branded <code>RedactedPayload</code>; the redaction pipeline is its only legitimate public constructor.</li>
+      <li><strong>The send is type-enforced.</strong> Provider adapters accept only a branded <code>RedactedPayload</code>; the ordinary way to earn one is detection plus <code>approve</code>, and the sole exception is the audited <code>unsafeBypass</code>.</li>
       <li><strong>The send is also runtime-enforced.</strong> Approved payloads are registered by object identity, and every provider calls <code>assertApproved</code> before making a request.</li>
       <li><strong>The restore is local and bound.</strong> <code>rehydrate</code> runs after the reply, checks the payload’s vault reference, and fails closed on a wrong vault or an unresolvable token.</li>
       <li><strong>The escape hatch is audited.</strong> <code>unsafeBypass</code> is the only way to make raw text sendable, and it always emits an <code>AuditEntry</code>.</li>
       <li><strong>Receipts are opt-in and hash-only.</strong> They are Ed25519-signed through <code>@gainratio/avow</code> and contain a SHA-256 digest, a decision and a provider name, never the text.</li>
+      <li><strong>No API key is embedded by the library.</strong> The library is environment-agnostic; a host passes its own key in. The bundled demo keeps <code>OPENROUTER_API_KEY</code> server-side and injects it through a same-origin dev proxy. Shipping a real key to the browser is a bug; report it as one.</li>
     </ul>
 
     <h2 id="guard">The egress guard</h2>
@@ -88,7 +89,7 @@
 
     <h2 id="evidence">What the tests prove</h2>
     <p>These are the repository’s own claims, each tied to a test you can run with <code>pnpm gate</code>:</p>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Test evidence" tabindex="0">
       <table>
         <thead><tr><th scope="col">Claim</th><th scope="col">Backed by</th></tr></thead>
         <tbody>
@@ -105,7 +106,7 @@
 
     <h2 id="boundaries">Boundaries</h2>
     <p>Over-claiming privacy is worse than claiming none. These are the limits, stated as boundaries rather than caveats:</p>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Security boundaries" tabindex="0">
       <table>
         <thead><tr><th scope="col">Not provided</th><th scope="col">Why</th></tr></thead>
         <tbody>

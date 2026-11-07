@@ -56,7 +56,7 @@
       <div>
         <p class="eyebrow">Open source · TypeScript · MIT</p>
         <h1 id="hero-heading">Keep sensitive text out of the model call.</h1>
-        <p class="lede">privacy-core finds card numbers, emails and ID numbers in the text your users paste. It swaps each one for a label on the device, shows the exact text that will leave, and only sends after your code calls <code>approve()</code>. The real values come back in the reply, locally.</p>
+        <p class="lede">privacy-core finds card numbers, emails and ID numbers in the text your users paste. It swaps each one for a label on the device, hands your app the exact text that will leave for review, and in the ordinary flow sends only after your code calls <code>approve()</code>. The real values come back in the reply, locally.</p>
         <div class="hero-actions">
           <a class="btn" href="#quickstart">Install and run the loop</a>
           <a class="btn secondary" href="/docs/">Read the documentation</a>
@@ -97,7 +97,7 @@
       <div class="card">
         <span class="step">THE BOUNDARY</span>
         <h3>Make the send a verb.</h3>
-        <p>The detector proposes. <code>redactForEgress()</code> returns a reviewable <code>PendingRedaction</code>, and only <code>approve()</code> mints the <code>RedactedPayload</code> a provider accepts. A raw string does not type-check.</p>
+        <p>The detector proposes. <code>redactForEgress()</code> returns a reviewable <code>PendingRedaction</code>, and only <code>approve()</code> turns a proposal into the <code>RedactedPayload</code> a provider accepts. A raw string does not type-check.</p>
         <p>The audit sink is required, so an approval that nobody can observe is not an approval this boundary will grant.</p>
       </div>
     </div>
@@ -126,7 +126,7 @@
         <li>
           <span class="step-num">03</span>
           <h3>Review &amp; approve</h3>
-          <p>A person sees the exact outgoing text. Only the explicit approval mints the sendable capability, and the audit sink is required.</p>
+          <p>A person sees the exact outgoing text. Only an explicit approval turns the proposal into the sendable capability, and the audit sink is required.</p>
           <code>approve(pending, audit)</code>
         </li>
         <li>

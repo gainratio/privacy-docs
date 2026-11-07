@@ -106,7 +106,7 @@ console.log("model replied:", reply.redactedText);
 console.log("you read:", rehydrate(reply.redactedText, vault, payload.vaultRef));</code></pre>
     <ol>
       <li><strong>Redact.</strong> <code>redactForEgress</code> detects values, writes them to the <code>Vault</code>, and returns a <code>PendingRedaction</code> proposal. It is not sendable.</li>
-      <li><strong>Approve.</strong> <code>approve</code> is the explicit review action. It requires an audit sink and mints the only capability a provider accepts.</li>
+      <li><strong>Approve.</strong> <code>approve</code> is the explicit review action. It requires an audit sink and mints the capability a provider accepts from the proposal.</li>
       <li><strong>Send.</strong> A provider — the offline echo, OpenRouter, or your own — receives the approved payload and puts only placeholders on the wire.</li>
       <li><strong>Restore.</strong> <code>rehydrate</code> takes the payload's <code>vaultRef</code>, checks it against the vault, and replaces the labels locally.</li>
     </ol>
@@ -134,14 +134,14 @@ unsafeBypass(raw: string, reason: string, audit: AuditSink): RedactedPayload
 makeProvider(config?: ProviderConfig): SelectedProvider</code></pre>
 
     <h3>Core and audit</h3>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Core and audit exports" tabindex="0">
       <table>
         <caption>Exports from the public barrel</caption>
         <thead><tr><th scope="col">Export</th><th scope="col">Kind</th><th scope="col">Role</th></tr></thead>
         <tbody>
           <tr><td><code>detect</code></td><td>function</td><td>Deterministic identifier detection; returns spans.</td></tr>
           <tr><td><code>redactForEgress</code></td><td>function</td><td>Detect, write to the vault, and return a <code>PendingRedaction</code> proposal.</td></tr>
-          <tr><td><code>approve</code></td><td>function</td><td>The explicit review step. Required audit sink; mints the sendable payload.</td></tr>
+          <tr><td><code>approve</code></td><td>function</td><td>The explicit review step. Required audit sink; mints the sendable payload from a proposal.</td></tr>
           <tr><td><code>rehydrate</code></td><td>function</td><td>Restore real values locally, bound to the payload's vault.</td></tr>
           <tr><td><code>Vault</code></td><td>class</td><td>In-memory token-to-value map with a frozen reference id.</td></tr>
           <tr><td><code>PendingRedaction</code></td><td>type</td><td>A review proposal. Not sendable.</td></tr>
@@ -164,7 +164,7 @@ makeProvider(config?: ProviderConfig): SelectedProvider</code></pre>
     </div>
 
     <h3>Providers</h3>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Provider exports" tabindex="0">
       <table>
         <thead><tr><th scope="col">Export</th><th scope="col">Kind</th><th scope="col">Role</th></tr></thead>
         <tbody>
@@ -182,7 +182,7 @@ makeProvider(config?: ProviderConfig): SelectedProvider</code></pre>
     </div>
 
     <h3>Receipts</h3>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Receipt exports" tabindex="0">
       <table>
         <thead><tr><th scope="col">Export</th><th scope="col">Kind</th><th scope="col">Role</th></tr></thead>
         <tbody>
@@ -203,7 +203,7 @@ makeProvider(config?: ProviderConfig): SelectedProvider</code></pre>
 
     <h3>Configuration</h3>
     <p>The library reads no environment variables; your code passes every setting in.</p>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Configuration options" tabindex="0">
       <table>
         <thead><tr><th scope="col">Setting</th><th scope="col">Where</th><th scope="col">Default</th><th scope="col">What it changes</th></tr></thead>
         <tbody>
@@ -245,7 +245,7 @@ await redactForEgress("ada@example.com and grace@example.com", vault);
 
     <h2 id="detection">Detection coverage</h2>
     <p>Detection is a fixed ruleset, so the honest version of “it finds the private bits” is a list. This is the whole of it. If a format is not in the left column, it is not detected, and the review step is what catches it.</p>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Detection coverage" tabindex="0">
       <table>
         <caption>The complete recognized set. The repository proves each recognized format at the network boundary.</caption>
         <thead><tr><th scope="col">Type</th><th scope="col">Recognized</th><th scope="col">Not recognized</th></tr></thead>
@@ -312,7 +312,7 @@ await redactForEgress("ada@example.com and grace@example.com", vault);
 
     <h2 id="errors">Errors</h2>
     <p>Every typed failure extends <code>PrivacyCoreError</code>. They are fail-closed signals: the safe reaction is to stop the send or restore, not to continue past it.</p>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Typed errors" tabindex="0">
       <table>
         <thead><tr><th scope="col">Error</th><th scope="col">Raised when</th></tr></thead>
         <tbody>
@@ -381,6 +381,19 @@ const { provider, label } = makeProvider({
       <li>Input is capped at 512 KiB per call; split larger documents into reviewed sections.</li>
     </ul>
     <p><a href="/security/">The security page</a> covers the threat model, the test evidence and private reporting.</p>
+
+    <h3>When to use something else</h3>
+    <div class="table-wrap" role="region" aria-label="When to use something else" tabindex="0">
+      <table>
+        <thead><tr><th scope="col">If you need</th><th scope="col">Use</th></tr></thead>
+        <tbody>
+          <tr><td>Names, places and many more types, and you can run a Python service</td><td><a href="https://github.com/microsoft/presidio">Microsoft Presidio</a></td></tr>
+          <tr><td>A check in a Python gateway you already run in front of the model</td><td><a href="https://github.com/protectai/llm-guard">LLM Guard</a> <code>Anonymize</code></td></tr>
+          <tr><td>Broad detection, and you are fine sending raw text to a vendor</td><td>A hosted data-loss-prevention API</td></tr>
+          <tr><td>Card, account and ID numbers kept on the user's device, with a review step your code cannot skip</td><td>This library</td></tr>
+        </tbody>
+      </table>
+    </div>
 
     <h2>Next</h2>
     <ul>
