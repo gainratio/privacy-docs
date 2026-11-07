@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>privacy-core examples — Node, TypeScript, receipts</title>
+<meta name="description" content="Copyable privacy-core examples: the README Node quickstart, detection, the compile-time egress guard, signed receipts, a real model call, and the offline demo.">
+<link rel="canonical" href="https://privacy.gainratio.com/examples/">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#0f5f56">
+<meta property="og:type" content="article">
+<meta property="og:title" content="privacy-core examples — Node, TypeScript, receipts">
+<meta property="og:description" content="Run the four-step loop, print detection spans, see the compile-time guard, sign receipts, and call a real model with your own key.">
+<meta property="og:url" content="https://privacy.gainratio.com/examples/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "privacy-core examples",
+  "description": "Copyable Node and TypeScript examples for redaction, detection, the egress guard, signed receipts, and calling a real model.",
+  "url": "https://privacy.gainratio.com/examples/",
+  "author": { "@type": "Organization", "name": "GainRatio" },
+  "isPartOf": {
+    "@type": "SoftwareSourceCode",
+    "name": "privacy-core",
+    "url": "https://privacy.gainratio.com/"
+  }
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="/"><span class="mark" aria-hidden="true">P</span> privacy-core</a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/docs/">Docs</a>
+      <a href="/examples/" aria-current="page">Examples</a>
+      <a href="/security/">Security</a>
+      <a href="https://github.com/gainratio/privacy-core">GitHub ↗</a>
+      <a class="nav-cta" href="/docs/#install">Install</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap docs-layout">
+  <nav class="docs-nav" aria-label="Examples">
+    <h2>Examples</h2>
+    <a href="#quickstart">Quickstart</a>
+    <a href="#detect">Detect only</a>
+    <a href="#compile">Compile-time guard</a>
+    <a href="#receipts">Signed receipts</a>
+    <a href="#real-model">Real model</a>
+    <a href="#demo">Browser demo</a>
+    <a href="#checks">Run the checks</a>
+  </nav>
+
+  <div class="docs-body">
+    <p class="eyebrow">Examples</p>
+    <h1>Copy it. Run it. Watch the labels.</h1>
+    <p class="lede">Every example here uses the public API. The outputs shown are the documented runs: the README quickstart, the API docs receipts example, and the repository checks. Nothing is a mock-up, and no output is invented.</p>
+    <div class="note">These examples target <code>@gainratio/privacy-core</code> 0.3.2. Everything except the real-model section runs offline with no API key.</div>
+
+    <h2 id="quickstart">Quickstart: the four-step loop</h2>
+    <p>Node 22.13 or newer. Create an empty project and install the package:</p>
+    <pre><code>mkdir try-privacy-core &amp;&amp; cd try-privacy-core
+npm init -y
+npm install @gainratio/privacy-core</code></pre>
+    <p>Save this as <code>example.mjs</code>:</p>
+    <pre><code>import {
+  approve,
+  guardedProvider,
+  NoLLMProvider,
+  redactForEgress,
+  rehydrate,
+  Vault,
+} from "@gainratio/privacy-core";
+
+const text = "Maria Lopez asked: refund $482.10 to card 4242 4242 4242 4242 and email maria@example.com.";
+const vault = new Vault(); // keeps the real values, in memory, on this machine
+const log = (entry) =&gt; console.log("[log]", entry.kind, entry.placeholders.join(" "));
+
+const pending = await redactForEgress(text, vault, log); // 1. swap values for labels
+console.log("will send: ", pending.redactedText);
+
+const payload = approve(pending, log); // 2. a person has read the line above and said yes
+const reply = await guardedProvider(new NoLLMProvider()).complete(payload); // 3. offline stand-in model
+const answer = reply.redactedText.split("\n")[1];
+
+console.log("AI saw:    ", answer);
+console.log("you see:   ", rehydrate(answer, vault, payload.vaultRef)); // 4. real values put back locally</code></pre>
+    <p>Run it:</p>
+    <pre><code>node example.mjs</code></pre>
+    <p>This is the real output, recorded in the README:</p>
+    <pre class="output"><code>[log] redact [AMOUNT_1] [CARD_1] [EMAIL_1]
+will send:  Maria Lopez asked: refund [AMOUNT_1] to card [CARD_1] and email [EMAIL_1].
+[log] approve [AMOUNT_1] [CARD_1] [EMAIL_1]
+AI saw:     I reviewed your statement. It referenced 3 redacted value(s): [AMOUNT_1], [CARD_1], [EMAIL_1].
+you see:    I reviewed your statement. It referenced 3 redacted value(s): $482.10, 4242 4242 4242 4242, maria@example.com.</code></pre>
+    <div class="note"><strong>The amount, card and email were replaced. The name was not.</strong> “Maria Lopez” goes out as written. That is why step 2 exists: a person reads the outgoing text before anything is sent and removes what the library missed.</div>
+
+    <h2 id="detect">Detect only: what the ruleset sees</h2>
+    <p><code>detect</code> is the deterministic scanner underneath redaction. It returns spans — type, value, start and end offsets — and writes nothing to a vault.</p>
+    <pre><code>import { detect } from "@gainratio/privacy-core";
+
+const spans = detect(
+  "Grace Hopper, card 4242 4242 4242 4242, was charged $482.10 at Whole Foods on 01/14/2026.",
+);
+
+for (const span of spans) {
+  console.log(span.type, JSON.stringify(span.value), span.start, span.end);
+}</code></pre>
+    <p>Output:</p>
+    <pre><code>NAME "Grace Hopper" 0 12
+CARD "4242 4242 4242 4242" 19 38
+AMOUNT "$482.10" 52 59
+MERCHANT "Whole Foods" 63 74
+DATE "01/14/2026" 78 88</code></pre>
+    <p>That example uses two of the small dictionaries: one of three demo names and one of five demo merchants. General names and merchants are not detected. The offsets are positions in the original string, so you can render a highlighted preview without changing the text.</p>
+
+    <h2 id="compile">The compile-time guard</h2>
+    <p>Provider adapters accept only a branded <code>RedactedPayload</code>. Passing raw text stops at the compiler, before anything can run:</p>
+    <pre><code>import { NoLLMProvider } from "@gainratio/privacy-core";
+
+const provider = new NoLLMProvider();
+await provider.complete("my card is 4242 4242 4242 4242");</code></pre>
+    <p>The compiler reports:</p>
+    <pre><code>oops.ts(4,25): error TS2345: Argument of type 'string' is not assignable to parameter of type 'RedactedPayload'.
+  Type 'string' is not assignable to type 'Branded&lt;"RedactedPayload"&gt;'.</code></pre>
+    <p>The line and column depend on your file; the rejection is the point. TypeScript’s brand disappears at runtime, so the guard is enforced a second way: every approved payload is registered by object identity, and a hand-built or spread-cloned look-alike is refused by <code>assertApproved</code> before any network call. That is the <code>UnapprovedPayloadError</code> in the receipts example.</p>
+
+    <h2 id="receipts">Signed receipts: an allow and a deny</h2>
+    <p>Receipts are opt-in. Install the signing package alongside privacy-core:</p>
+    <pre><code>npm install @gainratio/avow</code></pre>
+    <pre><code>import { generateSeedHex, publicKeyHex, verifySignature } from "@gainratio/avow";
+import {
+  approve,
+  guardedProvider,
+  NoLLMProvider,
+  redactForEgress,
+  Vault,
+} from "@gainratio/privacy-core";
+
+const seedHex = generateSeedHex(); // your signing key, generated on this device
+const receipts = [];
+
+const provider = guardedProvider(new NoLLMProvider(), {
+  provider: "offline-echo",
+  seedHex,
+  onReceipt: (r) =&gt; receipts.push(r),
+});
+
+const vault = new Vault();
+const pending = await redactForEgress("Card on file: 4242 4242 4242 4242", vault);
+await provider.complete(approve(pending, () =&gt; {}));
+
+// A payload the guard never approved is refused — and the refusal is recorded too.
+// (In TypeScript this call wouldn't compile; plain JS shows the runtime half.)
+await provider
+  .complete({ redactedText: "raw card 4242 4242 4242 4242", vaultRef: { id: "x" } })
+  .catch((err) =&gt; console.log("refused:", err.constructor.name));
+
+for (const r of receipts) console.log(r.payload);
+
+// Anyone holding your public key can check the receipts were not edited later.
+await verifySignature(receipts[0], await publicKeyHex(seedHex));
+console.log("\nsignature check: passed");</code></pre>
+    <p>The program prints <code>refused: UnapprovedPayloadError</code> and <code>signature check: passed</code>, plus two receipt payloads: one <code>allow</code> and one <code>deny</code>. Each receipt contains <code>action</code>, <code>provider</code>, <code>args_digest</code>, <code>decision</code> and <code>detector_version</code>. The digest is a SHA-256 hash of the redacted text — never the text itself — so the exact value depends on the input and the ruleset.</p>
+    <p>Receipts are tamper-evident records, not replay-prevention tokens: the signed envelope is deterministic, so two identical decisions produce identical receipts. A downstream audit store must track occurrences if it needs to count sends. And a signature proves a record has not changed since it was signed; it says nothing about whether the signing host was already compromised.</p>
+    <div class="note">Omit the governance argument and you get exactly the same redaction and the same fail-closed guard — just no receipt.</div>
+
+    <h2 id="real-model">Calling a real model</h2>
+    <p>This is the only example that needs a key and a network. The library is environment-agnostic: your code passes the key in, and the library never reads it from the environment for you. Keep this on a server you control.</p>
+    <pre><code>import {
+  approve,
+  makeProvider,
+  redactForEgress,
+  rehydrate,
+  Vault,
+} from "@gainratio/privacy-core";
+
+const statement = "Card on file: 4242 4242 4242 4242 for ada@example.com.";
+
+const { provider, label } = makeProvider({
+  apiKey: process.env.OPENROUTER_API_KEY, // server-side only
+  model: "openai/gpt-4o-mini",
+});
+
+const vault = new Vault();
+const pending = await redactForEgress(statement, vault);
+const payload = approve(pending, () => {});
+const reply = await provider.complete(payload);
+const answer = rehydrate(reply.redactedText, vault, payload.vaultRef);
+
+console.log(label);
+console.log(answer);</code></pre>
+    <p>No output is shown because this path needs a real key and a live endpoint; the labels on the wire and the restored answer follow the same shape as the quickstart. <code>makeProvider</code> defaults to <code>openai/gpt-4o-mini</code>, a 30-second deadline and a 1 MiB response cap, and throws <code>MissingApiKeyError</code> rather than silently falling back when no key is present.</p>
+    <p>In a browser, do not put the key in the bundle. Point <code>endpoint</code> at a same-origin proxy that injects the key server-side. That is how the repository’s demo calls OpenRouter; the browser only ever holds a non-secret sentinel. See <a href="/docs/#deployment">deployment guidance</a>.</p>
+
+    <h2 id="demo">The browser demo, run locally</h2>
+    <p>There is no embedded demo on this page. The real demo is a Vite app in the repository, and the Playwright wire proof drives it. Run it yourself:</p>
+    <pre><code>git clone https://github.com/gainratio/privacy-core
+cd privacy-core
+corepack enable
+pnpm install
+pnpm exec playwright install chromium   # first time only
+pnpm demo</code></pre>
+    <p>Open <a href="http://localhost:5173">http://localhost:5173</a>. A synthetic bank statement is pre-loaded. You see the raw text, the exact text that will be sent, and — after you click <strong>Approve &amp; send</strong> — the answer with real values restored locally. With no key set, the offline stand-in answers, so the whole loop runs with nothing on the network.</p>
+    <p>Open your browser’s network tab while you click: only labels go out. Stop the demo with <code>Ctrl-C</code> when you are done; the e2e suite reuses a server already on port 5173 and will adopt the wrong one if you leave it running.</p>
+
+    <h2 id="checks">Run the checks</h2>
+    <p>The repository gate is one command and is what CI runs:</p>
+    <pre><code>pnpm gate</code></pre>
+    <p>It runs Biome lint and format checks, TypeScript checks, Vitest with 100% coverage thresholds, the Playwright browser test and the build. To run only the wire proof:</p>
+    <pre><code>pnpm exec playwright install --with-deps chromium   # first time only
+pnpm test:e2e</code></pre>
+    <p>The e2e test drives the demo in real Chromium, intercepts the outbound request and fails if any real value appears in it. That is the claim this site is built on, and it is testable without trusting the copy.</p>
+
+    <h2>Next</h2>
+    <ul>
+      <li><a href="/docs/">Documentation: API, placeholders, errors and deployment</a></li>
+      <li><a href="/security/">Security: what the guard proves and what it does not</a></li>
+      <li><a href="https://github.com/gainratio/privacy-core/blob/main/docs/API.md">The full API reference on GitHub</a></li>
+    </ul>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <span>© 2026 GainRatio · <a href="https://gainratio.com/">gainratio.com</a></span>
+    <span><a href="https://github.com/gainratio/privacy-core">GitHub</a> · <a href="https://www.npmjs.com/package/@gainratio/privacy-core">npm</a> · <a href="https://open-source.gainratio.com/">Open source hub</a> · <a href="/security/">Security</a></span>
+  </div>
+</footer>
+</body>
+</html>

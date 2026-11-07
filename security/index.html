@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>privacy-core security — threat model and reporting</title>
+<meta name="description" content="privacy-core threat model: what the egress guard proves, what it cannot protect, how the vault and keys behave, and how to report a vulnerability privately.">
+<link rel="canonical" href="https://privacy.gainratio.com/security/">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#0f5f56">
+<meta property="og:type" content="article">
+<meta property="og:title" content="privacy-core security — threat model and reporting">
+<meta property="og:description" content="A narrow promise: placeholders cross the wire, real values stay on the device. The boundaries, the evidence, and private reporting.">
+<meta property="og:url" content="https://privacy.gainratio.com/security/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "privacy-core security",
+  "description": "Threat model, security boundaries, test evidence, and private vulnerability reporting for privacy-core.",
+  "url": "https://privacy.gainratio.com/security/",
+  "author": { "@type": "Organization", "name": "GainRatio" },
+  "isPartOf": {
+    "@type": "SoftwareSourceCode",
+    "name": "privacy-core",
+    "url": "https://privacy.gainratio.com/"
+  }
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="/"><span class="mark" aria-hidden="true">P</span> privacy-core</a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/docs/">Docs</a>
+      <a href="/examples/">Examples</a>
+      <a href="/security/" aria-current="page">Security</a>
+      <a href="https://github.com/gainratio/privacy-core">GitHub ↗</a>
+      <a class="nav-cta" href="/docs/#install">Install</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap docs-layout">
+  <nav class="docs-nav" aria-label="Security">
+    <h2>Security</h2>
+    <a href="#promise">The promise</a>
+    <a href="#guard">The egress guard</a>
+    <a href="#evidence">Test evidence</a>
+    <a href="#boundaries">Boundaries</a>
+    <a href="#receipts">Receipts</a>
+    <a href="#in-scope">In scope</a>
+    <a href="#report">Report</a>
+    <a href="#versions">Versions</a>
+    <a href="#supply">Supply chain</a>
+  </nav>
+
+  <div class="docs-body">
+    <p class="eyebrow">Security</p>
+    <h1>A narrow promise, held at the wire.</h1>
+    <p class="lede">The useful security review is not “is it private?” but “what exactly does the guard stop, and what is still the integrator’s job?” This page is specific about both, including the parts the library cannot fix.</p>
+    <div class="note">This page is sourced from <a href="https://github.com/gainratio/privacy-core/blob/main/SECURITY.md">SECURITY.md</a> and <a href="https://github.com/gainratio/privacy-core/blob/main/docs/ARCHITECTURE.md">docs/ARCHITECTURE.md</a>. If this page and the repository disagree, the repository wins.</div>
+
+    <h2 id="promise">The promise</h2>
+    <p>The whole design is stated plainly in SECURITY.md: raw private text never crosses the wire. Detection, the vault and rehydration run on the device; only an approved, labelled payload is sendable. The documented limit sits on top of that promise: values outside the fixed ruleset are not detected, so the review step is what catches the rest.</p>
+    <ul class="checks">
+      <li><strong>Only placeholders for recognized values leave.</strong> The provider call receives the text the reviewer approved, with detected values replaced by labels like <code>[CARD_1]</code>.</li>
+      <li><strong>The send is type-enforced.</strong> Provider adapters accept only a branded <code>RedactedPayload</code>; the redaction pipeline is its only legitimate public constructor.</li>
+      <li><strong>The send is also runtime-enforced.</strong> Approved payloads are registered by object identity, and every provider calls <code>assertApproved</code> before making a request.</li>
+      <li><strong>The restore is local and bound.</strong> <code>rehydrate</code> runs after the reply, checks the payload’s vault reference, and fails closed on a wrong vault or an unresolvable token.</li>
+      <li><strong>The escape hatch is audited.</strong> <code>unsafeBypass</code> is the only way to make raw text sendable, and it always emits an <code>AuditEntry</code>.</li>
+      <li><strong>Receipts are opt-in and hash-only.</strong> They are Ed25519-signed through <code>@gainratio/avow</code> and contain a SHA-256 digest, a decision and a provider name, never the text.</li>
+    </ul>
+
+    <h2 id="guard">The egress guard</h2>
+    <p>This is the load-bearing boundary, and it has two independent halves:</p>
+    <ul>
+      <li><strong>Compile time.</strong> <code>RedactedPayload</code> is a branded type. A plain <code>string</code> is not assignable to it, so handing raw text to a provider is a <code>TS2345</code> compile error. The brand factory <code>mintPendingRedaction</code> is deliberately not exported from the public barrel. <code>pnpm build</code> re-proves the compile-time half on every build.</li>
+      <li><strong>Runtime.</strong> TypeScript’s brand disappears at runtime, so every approved payload is registered in a module-private <code>WeakSet</code> by identity. <code>assertApproved</code> rejects a hand-built or spread-cloned look-alike with <code>UnapprovedPayloadError</code> before any network call.</li>
+    </ul>
+    <p>An unapproved payload is refused, not warned about. A redaction with no detections is still not sendable; it passes through <code>approve()</code> like any other. The audit sink is required, so an approval nobody can observe is not an approval this boundary grants.</p>
+    <p>The one exception is explicit by name: <code>unsafeBypass(raw, reason, audit)</code> always writes an audit entry recording the human-supplied reason. A bypass that leaves no audit trail is a vulnerability, not a feature.</p>
+
+    <h2 id="evidence">What the tests prove</h2>
+    <p>These are the repository’s own claims, each tied to a test you can run with <code>pnpm gate</code>:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Claim</th><th scope="col">Backed by</th></tr></thead>
+        <tbody>
+          <tr><td>Only labels cross the network</td><td><code>pnpm test:e2e</code> drives the browser demo in real Chromium, intercepts the outbound request and fails if any real value is in it.</td></tr>
+          <tr><td>Every format in the recognized table is redacted at the wire</td><td><code>test/detector-completeness.test.ts</code> drives each documented format through the real send path.</td></tr>
+          <tr><td>Nothing that v0.2.2 redacted stops being redacted</td><td><code>test/v022-recall-floor.test.ts</code> carries a frozen copy of the v0.2.2 recognizers.</td></tr>
+          <tr><td>A raw string cannot reach a provider</td><td><code>test/brand-compile-proof.test.ts</code> and <code>pnpm build</code>.</td></tr>
+          <tr><td>Hostile input stays fast: 512 KiB of card-, IBAN- or email-shaped text in under 1.5 seconds (100–250 ms measured on a CI-class Linux container, Node 22)</td><td><code>test/detection-regressions.test.ts</code>, timed outside coverage instrumentation.</td></tr>
+          <tr><td>Every source line and branch is exercised</td><td>Vitest coverage thresholds pinned at 100% in <code>pnpm gate</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>What the tests do not prove is below. A green suite is not a claim that the library catches everything, anonymises text, or survives a compromised host.</p>
+
+    <h2 id="boundaries">Boundaries</h2>
+    <p>Over-claiming privacy is worse than claiming none. These are the limits, stated as boundaries rather than caveats:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Not provided</th><th scope="col">Why</th></tr></thead>
+        <tbody>
+          <tr><td>Detection beyond the ruleset</td><td>The detector is regex, checksums and two small dictionaries. It misses oddly formatted account numbers, unusual names, and kinds of private data nobody wrote a rule for. The built-in name list is three demo names; general name detection is not shipped.</td></tr>
+          <tr><td>Anonymity</td><td>Even with names and numbers stripped, the shape of the text can identify a person. “$482.10, insurance, early January” can point at one person with no identifier left in it. This reduces direct identifier leakage; it is not anonymisation.</td></tr>
+          <tr><td>Protection from a compromised device</td><td>A malicious browser extension, a cross-site scripting bug or a compromised dependency can read the in-memory vault. There is no secure element involved.</td></tr>
+          <tr><td>Hardware-backed browser key custody</td><td>Signing keys held in a browser are protected by the browser’s same-origin rules and nothing stronger. Anything that can run code on your origin can reach them.</td></tr>
+          <tr><td>Persistence</td><td>The vault is ordinary process or tab memory and clears on reload. An encrypted, stored vault is planned, not shipped.</td></tr>
+          <tr><td>Control over the provider</td><td>What the AI company does with the labelled text it receives is outside this library.</td></tr>
+          <tr><td>Host attestation from receipts</td><td>A signature proves a record has not changed since it was signed. It does not prove the signing host was uncompromised, and it is not a replay-prevention token.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>If any of these limits is unacceptable for what you are doing, this is the wrong tool. The repository says so directly rather than working around it.</p>
+
+    <h2 id="receipts">Receipts: evidence, not host attestation</h2>
+    <p>Receipts are opt-in. Hand <code>guardedProvider</code> a governance context — provider name, signing seed and an <code>onReceipt</code> sink — and every decision it makes is signed with Ed25519 through <code>@gainratio/avow</code>. Refusals are recorded too, so a blocked send cannot simply vanish. A receipt contains a SHA-256 hash of the redacted text, not the text itself.</p>
+    <ul>
+      <li><strong>What a signature proves.</strong> The record has not been altered since it was signed. It says nothing about whether the machine that signed it was already compromised; an attacker controlling the host can make it sign a true-looking record of a decision you never wanted.</li>
+      <li><strong>Replay and counting.</strong> The signed envelope is deterministic, so two identical decisions produce identical receipts. A downstream audit store must track receipt occurrences if it needs to count sends rather than only verify content.</li>
+      <li><strong>Legacy receipts.</strong> Receipts stored by 0.2.x have no <code>schema</code> field. <code>verifyEgressReceipt</code> labels them <code>{ legacy: true, compat: "pre-v1-schema" }</code>, and avow 0.5.3’s <code>verifySignature</code> accepts them as they are. The legacy flag is advisory only: <code>schema</code> is not part of the signed payload, so anyone can add or remove it without breaking the signature. Do not base a trust decision on it.</li>
+      <li><strong>Key handling.</strong> Your signing seed is passed in by the host. Browser-held keys are same-origin, not hardware-backed. The bundled demo uses a fixed, documented non-secret seed only to make its receipts reproducible; a real deployment keeps the seed server-side.</li>
+    </ul>
+    <p><a href="/examples/#receipts">There is a runnable allow-and-deny receipts example</a> if you want the shape without the theory.</p>
+
+    <h2 id="in-scope">What counts as a security report</h2>
+    <p>The parts worth probing are the boundary itself. In-scope reports include:</p>
+    <ul>
+      <li>Any way to construct or forge a <code>RedactedPayload</code> outside <code>redactForEgress</code> and <code>approve</code>.</li>
+      <li>Any path that puts raw, un-redacted text on the wire.</li>
+      <li>A bypass that skips the audit sink.</li>
+      <li>Vault contents escaping the local device.</li>
+    </ul>
+    <p><strong>Known, documented limits are not vulnerabilities:</strong> detection is deterministic (regex + checksums + dictionaries), so recall is bounded and the human-visible preview is the backstop for anything the ruleset misses. The contextual NER tier that would widen recall is deliberately deferred.</p>
+
+    <h2 id="report">Report a vulnerability</h2>
+    <p><strong>Please report security issues privately — do not open a public issue.</strong></p>
+    <ul>
+      <li>Preferred: open a <a href="https://github.com/gainratio/privacy-core/security/advisories/new">GitHub private security advisory</a> (Security → <em>Report a vulnerability</em>).</li>
+      <li>Or email <a href="mailto:harish.seshadri@gmail.com">harish.seshadri@gmail.com</a> with <code>SECURITY</code> in the subject.</li>
+    </ul>
+    <p>Useful things to include: what you found, how to reproduce it, the affected file or API, and the impact you think it has. A proof of concept helps but is not required.</p>
+    <p><strong>What to expect:</strong> an acknowledgement within a few days, and an honest assessment of severity and fix timeline. This is a solo-maintained open-source reference project, not a funded product. There is no bug-bounty payout, but credit in the fix or release notes is offered unless you would rather stay anonymous. Please give a reasonable window to ship a fix before any public disclosure.</p>
+
+    <h2 id="versions">Supported versions</h2>
+    <p>Fixes land on the latest release on <code>main</code>. Older tagged releases are not patched — upgrade to the current release. 0.3.2 is the current release; 0.3.1 was the first under <code>@gainratio/privacy-core</code>, and 0.3.0 and older shipped as <code>@edgeproc/privacy-core</code>.</p>
+
+    <h2 id="supply">Supply chain</h2>
+    <p>Releases are published from CI with npm provenance — an SLSA build attestation linking the tarball to this repository’s workflow. You can check the attestation for the current release:</p>
+    <pre><code>npm view @gainratio/privacy-core@0.3.2 dist.attestations</code></pre>
+    <p>And in a project that installed it:</p>
+    <pre><code>npm audit signatures</code></pre>
+    <p>The only runtime dependency is <a href="https://www.npmjs.com/package/@gainratio/avow"><code>@gainratio/avow</code></a>, used to sign the optional receipts. The library itself reads no environment variables and ships no server component.</p>
+
+    <h2>Read next</h2>
+    <ul>
+      <li><a href="/docs/#deployment">Deployment guidance</a>, including where to run the boundary and how to keep a provider key server-side.</li>
+      <li><a href="/examples/#checks">The checks you can run</a>, including the Playwright wire proof.</li>
+      <li><a href="https://github.com/gainratio/privacy-core/blob/main/SECURITY.md">SECURITY.md</a> and <a href="https://github.com/gainratio/privacy-core/blob/main/docs/ARCHITECTURE.md">ARCHITECTURE.md</a> in the repository.</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <span>© 2026 GainRatio · <a href="https://gainratio.com/">gainratio.com</a></span>
+    <span><a href="https://github.com/gainratio/privacy-core">GitHub</a> · <a href="https://www.npmjs.com/package/@gainratio/privacy-core">npm</a> · <a href="https://open-source.gainratio.com/">Open source hub</a> · <a href="/security/">Security</a></span>
+  </div>
+</footer>
+</body>
+</html>

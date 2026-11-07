@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>privacy-core — keep sensitive text out of AI calls</title>
+<meta name="description" content="A TypeScript library that swaps card numbers, emails and ID numbers for labels on-device, then restores them in the AI reply. MIT, Node 22.13+.">
+<link rel="canonical" href="https://privacy.gainratio.com/">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#0f5f56">
+<meta property="og:type" content="website">
+<meta property="og:title" content="privacy-core — keep sensitive text out of AI calls">
+<meta property="og:description" content="Redact on the device, approve the exact outgoing text, and restore real values from the reply locally.">
+<meta property="og:url" content="https://privacy.gainratio.com/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "privacy-core",
+  "alternateName": "@gainratio/privacy-core",
+  "description": "A TypeScript library that hides card numbers, emails and ID numbers from AI models, then puts them back in the reply.",
+  "codeRepository": "https://github.com/gainratio/privacy-core",
+  "programmingLanguage": "TypeScript",
+  "license": "https://opensource.org/license/mit",
+  "softwareVersion": "0.3.2",
+  "runtimePlatform": ["Node.js 22.13 or newer", "Chromium"],
+  "url": "https://privacy.gainratio.com/",
+  "sameAs": [
+    "https://github.com/gainratio/privacy-core",
+    "https://www.npmjs.com/package/@gainratio/privacy-core"
+  ]
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="/"><span class="mark" aria-hidden="true">P</span> privacy-core</a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/docs/">Docs</a>
+      <a href="/examples/">Examples</a>
+      <a href="/security/">Security</a>
+      <a href="https://github.com/gainratio/privacy-core">GitHub ↗</a>
+      <a class="nav-cta" href="#quickstart">Install</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" aria-labelledby="hero-heading">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">Open source · TypeScript · MIT</p>
+        <h1 id="hero-heading">Keep sensitive text out of the model call.</h1>
+        <p class="lede">privacy-core finds card numbers, emails and ID numbers in the text your users paste. It swaps each one for a label on the device, shows the exact text that will leave, and only sends after your code calls <code>approve()</code>. The real values come back in the reply, locally.</p>
+        <div class="hero-actions">
+          <a class="btn" href="#quickstart">Install and run the loop</a>
+          <a class="btn secondary" href="/docs/">Read the documentation</a>
+        </div>
+        <ul class="hero-facts">
+          <li><strong>0.3.2</strong> current release</li>
+          <li><strong>Node 22.13+</strong> or a modern browser</li>
+          <li><strong>1</strong> runtime dependency</li>
+          <li><strong>512 KiB</strong> input per call</li>
+        </ul>
+      </div>
+
+      <aside class="edge-card" aria-label="Example text before and after redaction">
+        <div class="edge-head">
+          <strong>What crosses the wire</strong>
+          <span>README example</span>
+        </div>
+        <div class="edge-body">
+          <p class="mini-label">On the device</p>
+          <pre class="edge-code"><code>Maria Lopez asked: refund <span class="pii">$482.10</span> to card <span class="pii">4242 4242 4242 4242</span> and email <span class="pii">maria@example.com</span>.</code></pre>
+          <p class="mini-label">The approved payload</p>
+          <pre class="edge-code"><code>Maria Lopez asked: refund <span class="tok">[AMOUNT_1]</span> to card <span class="tok">[CARD_1]</span> and email <span class="tok">[EMAIL_1]</span>.</code></pre>
+          <p class="edge-note"><strong>“Maria Lopez” is still there.</strong> The library does not generally detect names. The preview is what lets a reviewer catch the rest.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="band alt" aria-labelledby="problem-heading">
+    <div class="wrap grid-2">
+      <div>
+        <p class="eyebrow">The problem</p>
+        <h2 id="problem-heading">The paste box is a data leak.</h2>
+        <p>Add an “ask the AI about this” button to a banking, billing or support app, and people will paste whatever is on their screen: card numbers, account numbers, email addresses, sometimes a whole statement.</p>
+        <p>Send that text as written and all of it ends up with the AI company. Most teams either skip the feature or hope nobody pastes anything sensitive.</p>
+        <p><a href="/security/">Read the threat model</a> before deciding what you can put behind this.</p>
+      </div>
+      <div class="card">
+        <span class="step">THE BOUNDARY</span>
+        <h3>Make the send a verb.</h3>
+        <p>The detector proposes. <code>redactForEgress()</code> returns a reviewable <code>PendingRedaction</code>, and only <code>approve()</code> mints the <code>RedactedPayload</code> a provider accepts. A raw string does not type-check.</p>
+        <p>The audit sink is required, so an approval that nobody can observe is not an approval this boundary will grant.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="what-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">What it does</p>
+        <h2 id="what-heading">Four steps. The send is the step your code cannot skip.</h2>
+        <p>Detection is deterministic: fixed patterns, checksums and two small dictionaries. No model decides what is sensitive, and no network call is needed to find out.</p>
+      </div>
+      <ol class="flow">
+        <li>
+          <span class="step-num">01</span>
+          <h3>Detect</h3>
+          <p>Scans on the device for cards, emails, phones, SSNs, IBANs, labelled account and routing numbers, amounts, US dates, and a few demo names and merchants.</p>
+          <code>detect(text)</code>
+        </li>
+        <li>
+          <span class="step-num">02</span>
+          <h3>Redact</h3>
+          <p>Each recognized value goes into an in-memory <code>Vault</code> and is replaced by a stable, typed label such as <code>[CARD_1]</code>. The result is still only a proposal.</p>
+          <code>redactForEgress(text, vault)</code>
+        </li>
+        <li>
+          <span class="step-num">03</span>
+          <h3>Review &amp; approve</h3>
+          <p>A person sees the exact outgoing text. Only the explicit approval mints the sendable capability, and the audit sink is required.</p>
+          <code>approve(pending, audit)</code>
+        </li>
+        <li>
+          <span class="step-num">04</span>
+          <h3>Restore</h3>
+          <p>After the reply, the labels are swapped back from the same vault. The real values never crossed the wire.</p>
+          <code>rehydrate(text, vault, ref)</code>
+        </li>
+      </ol>
+      <div class="note teal"><strong>The guard is a type, not a convention.</strong> Provider adapters accept only <code>RedactedPayload</code>. Passing a raw <code>string</code> is a compile error, and a hand-built look-alike is rejected at runtime by object identity.</div>
+    </div>
+  </section>
+
+  <section class="band alt" aria-labelledby="coverage-heading">
+    <div class="wrap grid-2">
+      <div>
+        <p class="eyebrow">Coverage</p>
+        <h2 id="coverage-heading">It hides a list, not “everything private”.</h2>
+        <p>The honest version of “it finds the private bits” is a list. If a format is not on it, it is not detected, and the human preview is the backstop.</p>
+        <ul class="types" aria-label="Recognized identifier types">
+          <li>CARD</li>
+          <li>EMAIL</li>
+          <li>PHONE</li>
+          <li>SSN</li>
+          <li>IBAN</li>
+          <li>ROUTING</li>
+          <li>ACCOUNT</li>
+          <li>AMOUNT</li>
+          <li>DATE</li>
+          <li>NAME</li>
+          <li>MERCHANT</li>
+        </ul>
+        <p><a href="/docs/#detection">See the exact formats and what is deliberately missed</a></p>
+      </div>
+      <div class="card">
+        <h3>Recognized in practice</h3>
+        <ul class="checks compact">
+          <li>Luhn-valid card numbers in all the documented layouts.</li>
+          <li>IBANs that pass mod-97, grouped or compact.</li>
+          <li>Emails in any script; US/NANP phones in the documented formats.</li>
+          <li>SSNs, labelled account and routing numbers, dollar amounts and US dates.</li>
+          <li>Three demo names and five demo merchants. That is the whole name list.</li>
+          <li class="no">General names, addresses, free text, other currencies and other date formats.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="quickstart" aria-labelledby="quickstart-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Quickstart</p>
+        <h2 id="quickstart-heading">Run the real loop in a minute.</h2>
+        <p>Node 22.13 or newer, nothing else. The provider below is the built-in offline stand-in, so the whole loop runs with no API key and no network.</p>
+      </div>
+      <div class="quickstart-grid">
+        <div class="code-stack">
+          <p class="code-label">Create the project</p>
+          <pre><code>mkdir try-privacy-core &amp;&amp; cd try-privacy-core &amp;&amp; npm init -y &amp;&amp; npm install @gainratio/privacy-core</code></pre>
+          <p class="code-label">example.mjs</p>
+          <pre><code>import {
+  approve, guardedProvider, NoLLMProvider, redactForEgress, rehydrate, Vault,
+} from "@gainratio/privacy-core";
+
+const text = "Maria Lopez asked: refund $482.10 to card 4242 4242 4242 4242 and email maria@example.com.";
+const vault = new Vault(); // keeps the real values, in memory, on this machine
+const log = (entry) =&gt; console.log("[log]", entry.kind, entry.placeholders.join(" "));
+
+const pending = await redactForEgress(text, vault, log); // 1. swap values for labels
+console.log("will send: ", pending.redactedText);
+
+const payload = approve(pending, log); // 2. a person has read the line above and said yes
+const reply = await guardedProvider(new NoLLMProvider()).complete(payload); // 3. offline stand-in model
+const answer = reply.redactedText.split("\n")[1];
+
+console.log("AI saw:    ", answer);
+console.log("you see:   ", rehydrate(answer, vault, payload.vaultRef)); // 4. real values put back locally</code></pre>
+        </div>
+        <div class="code-stack">
+          <p class="code-label">Run it</p>
+          <pre><code>node example.mjs</code></pre>
+          <p class="code-label">Real output</p>
+          <pre class="output"><code>[log] redact [AMOUNT_1] [CARD_1] [EMAIL_1]
+will send:  Maria Lopez asked: refund [AMOUNT_1] to card [CARD_1] and email [EMAIL_1].
+[log] approve [AMOUNT_1] [CARD_1] [EMAIL_1]
+AI saw:     I reviewed your statement. It referenced 3 redacted value(s): [AMOUNT_1], [CARD_1], [EMAIL_1].
+you see:    I reviewed your statement. It referenced 3 redacted value(s): $482.10, 4242 4242 4242 4242, maria@example.com.</code></pre>
+          <div class="note"><strong>The name stays.</strong> The amount, card and email were replaced; “Maria Lopez” was not. Step 2 is where a person removes what the ruleset missed.</div>
+          <p><a href="/examples/">More examples, including detection and signed receipts</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band alt" id="limits" aria-labelledby="limits-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Limits</p>
+        <h2 id="limits-heading">What it does not do.</h2>
+        <p>Read this before trusting it with anything that matters. Over-claiming privacy is worse than claiming none.</p>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <h3>It is not a name detector</h3>
+          <p>General name detection is not shipped. The built-in list is three demo names, and it is only one entry in a fixed ruleset. The review step is the actual backstop.</p>
+        </div>
+        <div class="card">
+          <h3>It does not make text anonymous</h3>
+          <p>The words around the labels can still point at one person: “$482.10, insurance, early January”. Redaction reduces direct identifier leakage; it is not anonymisation.</p>
+        </div>
+        <div class="card">
+          <h3>The vault is memory-only</h3>
+          <p>Real values are held in process or tab memory and clear on reload. An encrypted stored vault is planned; it is not shipped.</p>
+        </div>
+        <div class="card">
+          <h3>It cannot protect a compromised device</h3>
+          <p>A malicious extension, an XSS bug or a bad dependency can read the in-memory vault. Browser-held signing keys are protected by same-origin rules, not a secure element.</p>
+        </div>
+        <div class="card">
+          <h3>It does not control the provider</h3>
+          <p>What the AI company does with the labelled text it receives is outside this library. Receipts record a decision; they do not constrain the receiver.</p>
+        </div>
+        <div class="card">
+          <h3>Input is capped</h3>
+          <p><code>redactForEgress</code> accepts at most 512 KiB of UTF-8 text and refuses larger input before detection. Split a large document into reviewed sections.</p>
+        </div>
+      </div>
+      <p class="hub-links">These are design boundaries, not bugs. <a href="/security/">The security page lists them in full</a>.</p>
+    </div>
+  </section>
+
+  <section class="band" id="data" aria-labelledby="data-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Security &amp; data handling</p>
+        <h2 id="data-heading">Where the data goes.</h2>
+        <p>No account. No API key needed to try it. No network call after the install unless you call a provider.</p>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <h3>On the device</h3>
+          <p>Detection, the vault and rehydration run locally. Real values stay in memory for the session and are gone on reload. Nothing sensitive is persisted by the library.</p>
+        </div>
+        <div class="card">
+          <h3>On the wire</h3>
+          <p>Only the approved placeholder text goes to the provider. Optional receipts contain a SHA-256 hash of that text, a decision and a provider name — never the text itself.</p>
+        </div>
+        <div class="card">
+          <h3>In your code</h3>
+          <p>You pass the key and choose the provider; the library reads no environment variables and ships no server component. The only request is the provider call you configure.</p>
+        </div>
+      </div>
+      <div class="note teal"><strong>Receipts are tamper-evident, not host attestation.</strong> A signature proves a record has not changed since it was signed. It does not prove the machine that signed it was uncompromised. <a href="/security/#receipts">Read the receipt boundary</a>.</div>
+    </div>
+  </section>
+
+  <section class="band alt faq" aria-labelledby="faq-heading">
+    <div class="wrap">
+      <p class="eyebrow">FAQ</p>
+      <h2 id="faq-heading">Questions worth asking.</h2>
+      <h3>Does it use AI to find sensitive values?</h3>
+      <p>No. Detection is a fixed ruleset: regex patterns, checksum validators (Luhn, mod-97, SSA rules) and two small dictionaries. The same input produces the same spans, and detection works offline.</p>
+      <h3>Does it work in the browser?</h3>
+      <p>Yes. The package is ES modules with a browser-safe public barrel and is tested in Chromium. It also runs on Node 22.13 or newer. The demo is a Vite app in the repository.</p>
+      <h3>What happens when the detector misses something?</h3>
+      <p>It goes out as written unless the reviewer removes it. That is why the exact outgoing text is shown before <code>approve()</code>. Names, addresses and free text are outside the ruleset by design.</p>
+      <h3>Can raw text ever be sent?</h3>
+      <p>Only through <code>unsafeBypass(raw, reason, audit)</code>, the explicit escape hatch. It always writes an audit entry. Every ordinary provider accepts only an approved <code>RedactedPayload</code>.</p>
+      <h3>Does it store the real values?</h3>
+      <p>Only in memory, for the life of the <code>Vault</code>. It clears on reload. A stored, encrypted vault is on the roadmap and is not part of this release.</p>
+      <h3>Do I need signed receipts?</h3>
+      <p>No. Receipts are opt-in: give <code>guardedProvider</code> a governance context and every allow or deny is signed into a hash-only record. Omit it and you get the same redaction and guard without receipts.</p>
+      <h3>Which models can it call?</h3>
+      <p>The bundled <code>OpenRouterProvider</code> speaks OpenAI-compatible <code>chat/completions</code>; <code>makeProvider</code> selects it when a key is present. You can also implement the <code>LlmProvider</code> contract yourself. <code>NoLLMProvider</code> is an offline echo for tests and demos.</p>
+      <h3>How large can the input be?</h3>
+      <p>512 KiB of UTF-8 per call. Larger input fails closed with <code>InputTooLargeError</code> before detection or vault writes. Split the document into reviewed sections.</p>
+      <div class="note"><strong>Not a compliance certificate.</strong> The library is a narrow boundary primitive. It does not make text anonymous and it does not decide whether your use of a model is lawful. Those remain your system and process decisions.</div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="next-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Keep reading</p>
+        <h2 id="next-heading">Install it, then check the edges.</h2>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <h3><a href="/docs/">Documentation</a></h3>
+          <p>Install, the API, how the placeholder mapping works, every typed error, and deployment guidance.</p>
+        </div>
+        <div class="card">
+          <h3><a href="/examples/">Examples</a></h3>
+          <p>The README quickstart, detection on its own, the compile-time guard, signed receipts, and the offline demo.</p>
+        </div>
+        <div class="card">
+          <h3><a href="/security/">Security</a></h3>
+          <p>The threat model, what the tests prove, what they do not, supported versions and private reporting.</p>
+        </div>
+      </div>
+      <p class="hub-links"><a href="https://github.com/gainratio/privacy-core">Source on GitHub</a> · <a href="https://www.npmjs.com/package/@gainratio/privacy-core">@gainratio/privacy-core on npm</a> · <a href="https://open-source.gainratio.com/">GainRatio open source</a> · <a href="https://github.com/gainratio/privacy-core/blob/main/SECURITY.md">SECURITY.md</a></p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <span>© 2026 GainRatio · <a href="https://gainratio.com/">gainratio.com</a></span>
+    <span><a href="https://github.com/gainratio/privacy-core">GitHub</a> · <a href="https://www.npmjs.com/package/@gainratio/privacy-core">npm</a> · <a href="https://open-source.gainratio.com/">Open source hub</a> · <a href="/security/">Security</a></span>
+  </div>
+</footer>
+</body>
+</html>

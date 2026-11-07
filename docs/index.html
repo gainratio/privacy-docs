@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>privacy-core docs — install, API, errors, deployment</title>
+<meta name="description" content="Install @gainratio/privacy-core, use the redaction and approval API, understand placeholder mapping, handle fail-closed errors, and deploy the boundary safely.">
+<link rel="canonical" href="https://privacy.gainratio.com/docs/">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#0f5f56">
+<meta property="og:type" content="article">
+<meta property="og:title" content="privacy-core docs — install, API, errors, deployment">
+<meta property="og:description" content="The complete public surface: the four-step loop, vault mapping, detection coverage, typed errors, and deployment guidance.">
+<meta property="og:url" content="https://privacy.gainratio.com/docs/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "privacy-core documentation",
+  "description": "Install privacy-core, use the redaction and approval API, understand placeholder mapping, handle errors, and deploy the boundary.",
+  "url": "https://privacy.gainratio.com/docs/",
+  "author": { "@type": "Organization", "name": "GainRatio" },
+  "isPartOf": {
+    "@type": "SoftwareSourceCode",
+    "name": "privacy-core",
+    "url": "https://privacy.gainratio.com/"
+  }
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="/"><span class="mark" aria-hidden="true">P</span> privacy-core</a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/docs/" aria-current="page">Docs</a>
+      <a href="/examples/">Examples</a>
+      <a href="/security/">Security</a>
+      <a href="https://github.com/gainratio/privacy-core">GitHub ↗</a>
+      <a class="nav-cta" href="#install">Install</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap docs-layout">
+  <nav class="docs-nav" aria-label="Documentation">
+    <h2>Documentation</h2>
+    <a href="#install">Install</a>
+    <a href="#loop">The loop</a>
+    <a href="#api">API</a>
+    <a href="#placeholders">Placeholders</a>
+    <a href="#detection">Detection</a>
+    <a href="#errors">Errors</a>
+    <a href="#deployment">Deployment</a>
+    <a href="#limits">Limits</a>
+  </nav>
+
+  <div class="docs-body">
+    <p class="eyebrow">Documentation</p>
+    <h1>Install it, then earn the payload.</h1>
+    <p class="lede">The public surface of <code>@gainratio/privacy-core</code> 0.3.2: installation, the four-step loop, every export, how the vault mapping works, the typed errors, and how to deploy the boundary without weakening it.</p>
+    <div class="note">This page follows the repository documentation: <a href="https://github.com/gainratio/privacy-core/blob/main/README.md">README.md</a>, <a href="https://github.com/gainratio/privacy-core/blob/main/docs/API.md">API.md</a>, <a href="https://github.com/gainratio/privacy-core/blob/main/docs/DETECTION.md">DETECTION.md</a> and <a href="https://github.com/gainratio/privacy-core/blob/main/docs/ARCHITECTURE.md">ARCHITECTURE.md</a>. Those files and the code are the source of truth.</div>
+
+    <h2 id="install">Install</h2>
+    <p>ES modules only. Node 22.13 or newer, or a modern browser bundler. The library is tested in Chromium and its public barrel is browser-safe.</p>
+    <pre><code>npm install @gainratio/privacy-core
+# or
+pnpm add @gainratio/privacy-core
+# or
+yarn add @gainratio/privacy-core</code></pre>
+    <p>There is one runtime dependency: <a href="https://www.npmjs.com/package/@gainratio/avow"><code>@gainratio/avow</code></a> <code>^0.5.3</code>, used to sign the optional egress receipts. No account and no API key are needed to try the library.</p>
+    <pre><code>import {
+  approve,
+  guardedProvider,
+  NoLLMProvider,
+  redactForEgress,
+  rehydrate,
+  Vault,
+} from "@gainratio/privacy-core";</code></pre>
+    <div class="note"><strong>Package name change.</strong> 0.3.1 was the first release under <code>@gainratio/privacy-core</code>; 0.3.0 and older shipped as <code>@edgeproc/privacy-core</code>. If you are on the old name, change the install command and every import, including the <code>/testing</code> subpath.</div>
+
+    <h2 id="loop">The loop</h2>
+    <p>This is the whole flow. It prints each step, including the audit log. <code>NoLLMProvider</code> is an offline echo, so the run needs no key and no network.</p>
+    <pre><code>import {
+  approve, guardedProvider, NoLLMProvider, redactForEgress, rehydrate, Vault,
+} from "@gainratio/privacy-core";
+
+const statement =
+  "Grace Hopper, card 4242 4242 4242 4242, was charged $482.10 at Whole Foods on 01/14/2026.";
+
+const vault = new Vault(); // holds your real values, in this process, on this machine
+const audit = (e) =&gt; console.log("[audit]", e.kind, e.placeholders);
+
+const pending = await redactForEgress(statement, vault, audit);
+console.log("leaves your machine:", pending.redactedText);
+
+const payload = approve(pending, audit);
+
+const reply = await guardedProvider(new NoLLMProvider()).complete(payload);
+console.log("model replied:", reply.redactedText);
+
+console.log("you read:", rehydrate(reply.redactedText, vault, payload.vaultRef));</code></pre>
+    <ol>
+      <li><strong>Redact.</strong> <code>redactForEgress</code> detects values, writes them to the <code>Vault</code>, and returns a <code>PendingRedaction</code> proposal. It is not sendable.</li>
+      <li><strong>Approve.</strong> <code>approve</code> is the explicit review action. It requires an audit sink and mints the only capability a provider accepts.</li>
+      <li><strong>Send.</strong> A provider — the offline echo, OpenRouter, or your own — receives the approved payload and puts only placeholders on the wire.</li>
+      <li><strong>Restore.</strong> <code>rehydrate</code> takes the payload's <code>vaultRef</code>, checks it against the vault, and replaces the labels locally.</li>
+    </ol>
+    <div class="note"><strong>Zero detections still need approval.</strong> “The detector found nothing” is not the same as “a reviewer approved this content to leave the device”. The approval step does not disappear when the ruleset is quiet.</div>
+
+    <h2 id="api">API</h2>
+    <p>Everything <code>src/index.ts</code> exports, and nothing more. The brand factory <code>mintPendingRedaction</code> is intentionally not public, and test fixtures live only behind the <code>/testing</code> subpath.</p>
+    <h3>Core signatures</h3>
+    <pre><code>detect(text: string): Span[]
+
+redactForEgress(
+  raw: string,
+  vault: Vault,
+  audit?: AuditSink,
+): Promise&lt;PendingRedaction&gt;
+
+approve(pending: PendingRedaction, audit: AuditSink): RedactedPayload
+
+guardedProvider(inner: LlmProvider, governance?: EgressGovernance): LlmProvider
+
+rehydrate(redactedText: string, vault: Vault, expectedRef: VaultRef): string
+
+unsafeBypass(raw: string, reason: string, audit: AuditSink): RedactedPayload
+
+makeProvider(config?: ProviderConfig): SelectedProvider</code></pre>
+
+    <h3>Core and audit</h3>
+    <div class="table-wrap">
+      <table>
+        <caption>Exports from the public barrel</caption>
+        <thead><tr><th scope="col">Export</th><th scope="col">Kind</th><th scope="col">Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>detect</code></td><td>function</td><td>Deterministic identifier detection; returns spans.</td></tr>
+          <tr><td><code>redactForEgress</code></td><td>function</td><td>Detect, write to the vault, and return a <code>PendingRedaction</code> proposal.</td></tr>
+          <tr><td><code>approve</code></td><td>function</td><td>The explicit review step. Required audit sink; mints the sendable payload.</td></tr>
+          <tr><td><code>rehydrate</code></td><td>function</td><td>Restore real values locally, bound to the payload's vault.</td></tr>
+          <tr><td><code>Vault</code></td><td>class</td><td>In-memory token-to-value map with a frozen reference id.</td></tr>
+          <tr><td><code>PendingRedaction</code></td><td>type</td><td>A review proposal. Not sendable.</td></tr>
+          <tr><td><code>RedactedPayload</code></td><td>type</td><td>The branded egress capability.</td></tr>
+          <tr><td><code>assertApproved</code></td><td>function</td><td>Runtime half of the guard; rejects unminted payloads by identity.</td></tr>
+          <tr><td><code>unsafeBypass</code></td><td>function</td><td>The explicit, audited escape hatch for raw text.</td></tr>
+          <tr><td><code>guardedProvider</code></td><td>function</td><td>Wrap a provider so the runtime guard runs at one chokepoint; optionally seal receipts.</td></tr>
+          <tr><td><code>LlmProvider</code></td><td>interface</td><td>Provider contract; accepts only <code>RedactedPayload</code>.</td></tr>
+          <tr><td><code>MAX_REDACTION_INPUT_BYTES</code></td><td>constant</td><td>512 KiB UTF-8 input budget.</td></tr>
+          <tr><td><code>AuditEntry</code></td><td>type</td><td>Discriminated union of redact, approve and unsafe-bypass records.</td></tr>
+          <tr><td><code>RedactAuditEntry</code></td><td>interface</td><td>Audit record for a redact step.</td></tr>
+          <tr><td><code>ApproveAuditEntry</code></td><td>interface</td><td>Audit record for an approve step.</td></tr>
+          <tr><td><code>UnsafeBypassAuditEntry</code></td><td>interface</td><td>Audit record for an explicit bypass, including the reason.</td></tr>
+          <tr><td><code>AuditSink</code></td><td>type</td><td>The callback every approval and bypass must emit into.</td></tr>
+          <tr><td><code>EntityType</code></td><td>type</td><td>The category union used in placeholders and spans.</td></tr>
+          <tr><td><code>Span</code></td><td>interface</td><td>One detected span: type, value, start, end.</td></tr>
+          <tr><td><code>VaultRef</code></td><td>interface</td><td>Opaque, frozen handle to a vault's mapping.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Providers</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Export</th><th scope="col">Kind</th><th scope="col">Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>NoLLMProvider</code></td><td>class</td><td>Offline echo provider; no network, no key.</td></tr>
+          <tr><td><code>OpenRouterProvider</code></td><td>class</td><td>OpenAI-compatible <code>chat/completions</code> provider.</td></tr>
+          <tr><td><code>OpenRouterConfig</code></td><td>interface</td><td>Key, model, endpoint, timeout and response budget.</td></tr>
+          <tr><td><code>makeProvider</code></td><td>function</td><td>Config-driven selector, returning a provider and a UI label.</td></tr>
+          <tr><td><code>ProviderConfig</code></td><td>interface</td><td>Host-supplied config for <code>makeProvider</code>.</td></tr>
+          <tr><td><code>SelectedProvider</code></td><td>interface</td><td>The selected provider plus its label.</td></tr>
+          <tr><td><code>DEFAULT_OPENROUTER_TIMEOUT_MS</code></td><td>constant</td><td>30 seconds.</td></tr>
+          <tr><td><code>DEFAULT_OPENROUTER_MAX_RESPONSE_BYTES</code></td><td>constant</td><td>1 MiB of UTF-8.</td></tr>
+          <tr><td><code>RedactedResponse</code></td><td>interface</td><td>A provider reply, still in placeholder form.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Receipts</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Export</th><th scope="col">Kind</th><th scope="col">Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>EgressGovernance</code></td><td>interface</td><td>Provider name, signing seed and receipt sink for a guarded provider.</td></tr>
+          <tr><td><code>EgressDecision</code></td><td>type</td><td>The guard's verdict: allow or deny.</td></tr>
+          <tr><td><code>buildEgressSubject</code></td><td>function</td><td>Build the hash-only signed subject for one decision.</td></tr>
+          <tr><td><code>contentHash</code></td><td>function</td><td>The canonical hash a verifier recomputes.</td></tr>
+          <tr><td><code>DETECTOR_VERSION</code></td><td>constant</td><td>Ruleset version recorded in each receipt.</td></tr>
+          <tr><td><code>sealEgressReceipt</code></td><td>function</td><td>Sign one decision into a receipt.</td></tr>
+          <tr><td><code>verifyEgressReceipt</code></td><td>function</td><td>Verify a stored receipt against a pinned key, including 0.2.x receipts.</td></tr>
+          <tr><td><code>StoredEgressReceipt</code></td><td>type</td><td>A receipt as stored; <code>schema</code> is optional for legacy records.</td></tr>
+          <tr><td><code>EgressReceiptVerification</code></td><td>type</td><td>Verification result, with an advisory legacy flag.</td></tr>
+          <tr><td><code>EgressSubject</code></td><td>type</td><td>The signed, hash-only record of one egress decision.</td></tr>
+          <tr><td><code>EgressSubjectInput</code></td><td>interface</td><td>What the caller supplies to build the subject.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Configuration</h3>
+    <p>The library reads no environment variables; your code passes every setting in.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Setting</th><th scope="col">Where</th><th scope="col">Default</th><th scope="col">What it changes</th></tr></thead>
+        <tbody>
+          <tr><td><code>apiKey</code></td><td><code>OpenRouterConfig</code>, <code>ProviderConfig</code></td><td>Required for OpenRouter</td><td>The key sent to the provider. Keep it server-side.</td></tr>
+          <tr><td><code>model</code></td><td><code>OpenRouterConfig</code>, <code>ProviderConfig</code></td><td><code>openai/gpt-4o-mini</code> via <code>makeProvider</code></td><td>Which model answers.</td></tr>
+          <tr><td><code>endpoint</code></td><td><code>OpenRouterConfig</code>, <code>ProviderConfig</code></td><td><code>https://openrouter.ai/api/v1/chat/completions</code></td><td>Any OpenAI-compatible chat/completions URL.</td></tr>
+          <tr><td><code>timeoutMs</code></td><td><code>OpenRouterConfig</code>, <code>ProviderConfig</code></td><td><code>30000</code></td><td>End-to-end request deadline.</td></tr>
+          <tr><td><code>maxResponseBytes</code></td><td><code>OpenRouterConfig</code>, <code>ProviderConfig</code></td><td><code>1048576</code> (1 MiB)</td><td>Largest reply accepted.</td></tr>
+          <tr><td><code>allowOffline</code></td><td><code>ProviderConfig</code></td><td><code>false</code></td><td>Opt in to the offline echo when no key is set.</td></tr>
+          <tr><td><code>MAX_REDACTION_INPUT_BYTES</code></td><td>constant</td><td>512 KiB</td><td>Input budget; larger input is refused.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><code>makeProvider</code> fails closed with <code>MissingApiKeyError</code> when there is no usable key and <code>allowOffline</code> is not <code>true</code>. It is env-agnostic: it never reads a key for you.</p>
+
+    <h2 id="placeholders">Placeholders and the vault mapping</h2>
+    <p>A placeholder is a typed label, not a hash: <code>[CARD_1]</code>, <code>[EMAIL_2]</code>. The mapping is the <code>Vault</code>, and it lives only in memory.</p>
+    <pre><code>const vault = new Vault();
+
+await redactForEgress("Card 4242 4242 4242 4242", vault);
+// text:  Card [CARD_1]
+// vault: [CARD_1] ↔ 4242 4242 4242 4242
+
+await redactForEgress("Again: 4242 4242 4242 4242", vault);
+// same value, same vault → [CARD_1] again
+
+await redactForEgress("ada@example.com and grace@example.com", vault);
+// two different values → [EMAIL_1] and [EMAIL_2]</code></pre>
+    <ul>
+      <li><strong>Stable within a vault.</strong> The same <code>(type, value)</code> always receives the same token. Each entity type has its own counter, so <code>[CARD_1]</code> and <code>[EMAIL_1]</code> are separate.</li>
+      <li><strong>The reference is frozen.</strong> The payload carries <code>payload.vaultRef</code>, an opaque handle whose <code>id</code> identifies the vault. <code>rehydrate</code> checks that id first; a different vault fails with <code>VaultMismatchError</code>.</li>
+      <li><strong>Every label must resolve.</strong> Under the bound vault, an unknown <code>[TYPE_n]</code> token fails with <code>UnresolvedPlaceholderError</code>. The function does not leave a lookalike token in the reply.</li>
+      <li><strong>A new vault starts over.</strong> <code>new Vault()</code> gets a new id and counters start at 1. Hold the vault for the length of the conversation that the payload belongs to.</li>
+      <li><strong>Placeholder-shaped input is refused.</strong> If the raw text already contains something like <code>[CARD_1]</code>, redaction fails with <code>PlaceholderCollisionError</code>, because restore would be ambiguous.</li>
+      <li><strong>Nothing is persisted.</strong> The vault is ordinary process or tab memory and clears on reload. An encrypted IndexedDB vault is planned, not shipped. Do not share a vault between users.</li>
+      <li><strong>The map is only as complete as detection.</strong> A value the ruleset missed is never written to the vault, so it cannot be restored, and it may still leave in the reviewed text.</li>
+    </ul>
+    <div class="note"><strong>Rehydration is local.</strong> The provider's reply contains placeholders; the real values are substituted on the device after the reply arrives. The real values never need to be in the provider request.</div>
+
+    <h2 id="detection">Detection coverage</h2>
+    <p>Detection is a fixed ruleset, so the honest version of “it finds the private bits” is a list. This is the whole of it. If a format is not in the left column, it is not detected, and the review step is what catches it.</p>
+    <div class="table-wrap">
+      <table>
+        <caption>The complete recognized set. The repository proves each recognized format at the network boundary.</caption>
+        <thead><tr><th scope="col">Type</th><th scope="col">Recognized</th><th scope="col">Not recognized</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>EMAIL</code></td>
+            <td>Any script, on both sides of the <code>@</code>: <code>ada@example.com</code>, <code>josé.álvarez@example.com</code>, <code>kontakt@münchen-bank.example</code>.</td>
+            <td>A domain with no dot (<code>user@localhost</code>).</td>
+          </tr>
+          <tr>
+            <td><code>SSN</code></td>
+            <td><code>123-45-6789</code>, <code>123 45 6789</code>, and the same shape with any one consistent separator — dot, any whitespace (NBSP included) or any Unicode dash — with any digits, so ITINs and never-issued values are redacted too. Unseparated <code>123456789</code> only when it passes the SSA issuance rules (area not <code>000</code>/<code>666</code>/<code>9xx</code>, group not <code>00</code>, serial not <code>0000</code>).</td>
+            <td>An unseparated 9-digit run that could never have been issued; mixed separators (<code>123-45.6789</code>).</td>
+          </tr>
+          <tr>
+            <td><code>PHONE</code></td>
+            <td>US/NANP with <code>-</code>, <code>.</code> or space separators, optional parentheses, optional <code>+1</code>: <code>(415) 555-0132</code>, <code>+1(415) 555-0132</code>, <code>415-555-0132</code>, <code>212.555.0187</code>, <code>+1 646 555 0143</code>; also when glued to an extension. A parenthesized area code takes any digits; without parentheses, area and exchange must start <code>2</code>–<code>9</code>.</td>
+            <td>An unformatted <code>4155550132</code>, a 7-digit local number, non-NANP international, an unparenthesized number whose area or exchange starts <code>0</code>/<code>1</code> (<code>123-456-7890</code>).</td>
+          </tr>
+          <tr>
+            <td><code>CARD</code></td>
+            <td>13–19 digits with an optional space or hyphen between any two, <strong>Luhn-valid</strong>: <code>4111 1111 1111 1111</code>, <code>4111-1111-1111-1111</code>, unseparated, Amex <code>3782 822463 10005</code>, mixed separators and the documented irregular layouts. Printed layouts are also found after another digit group and before more digits, via a shorter retry.</td>
+            <td>Runs that fail Luhn; a card fused into a longer digit run with no separator; other separators (dot, NBSP).</td>
+          </tr>
+          <tr>
+            <td><code>IBAN</code></td>
+            <td>Grouped or compact, <strong>mod-97-valid</strong>, including when an uppercase word follows. Groups may be separated by any whitespace.</td>
+            <td>Other bank identifiers (SWIFT/BIC, UK sort codes).</td>
+          </tr>
+          <tr>
+            <td><code>ROUTING</code></td>
+            <td><code>Routing number: 021000021</code>. The English label is required.</td>
+            <td>A bare routing number, which is not distinguishable from any other 9-digit run.</td>
+          </tr>
+          <tr>
+            <td><code>ACCOUNT</code></td>
+            <td><code>Account number: 000123456789</code>. 6 to 17 digits; the English label is required.</td>
+            <td>A bare account number; a labelled one of 5 digits or fewer.</td>
+          </tr>
+          <tr>
+            <td><code>AMOUNT</code></td>
+            <td><code>$1,482.10</code>.</td>
+            <td>Other currencies.</td>
+          </tr>
+          <tr>
+            <td><code>DATE</code></td>
+            <td><code>01/14/2026</code>.</td>
+            <td>Every other date format.</td>
+          </tr>
+          <tr>
+            <td><code>NAME</code></td>
+            <td>Three demo names: <code>Ada Lovelace</code>, <code>Grace Hopper</code>, <code>Alan Turing</code>.</td>
+            <td><strong>Every other name.</strong> General name detection is not shipped.</td>
+          </tr>
+          <tr>
+            <td><code>MERCHANT</code></td>
+            <td>Five demo merchants: Whole Foods, Starbucks, Amazon, Walmart, Costco.</td>
+            <td>Every other merchant.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The repository proves the recognized column at the wire, with <code>test/detector-completeness.test.ts</code>, and pins a recall floor against v0.2.2. The limits that are easiest to widen by accident are pinned as tests too. <a href="https://github.com/gainratio/privacy-core/blob/main/docs/DETECTION.md">Read the source table</a>.</p>
+
+    <h2 id="errors">Errors</h2>
+    <p>Every typed failure extends <code>PrivacyCoreError</code>. They are fail-closed signals: the safe reaction is to stop the send or restore, not to continue past it.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Error</th><th scope="col">Raised when</th></tr></thead>
+        <tbody>
+          <tr><td><code>PrivacyCoreError</code></td><td>The common base class. Catch it to handle any boundary failure.</td></tr>
+          <tr><td><code>InputTooLargeError</code></td><td>Input exceeds 512 KiB of UTF-8, before detection, vault writes or audit callbacks.</td></tr>
+          <tr><td><code>PlaceholderCollisionError</code></td><td>The input already contains placeholder-shaped text such as <code>[CARD_1]</code>.</td></tr>
+          <tr><td><code>ResidualValueError</code></td><td>A recognized value would still appear verbatim as a standalone token in the redacted output.</td></tr>
+          <tr><td><code>ForgedPayloadError</code></td><td><code>approve()</code> receives an object the redaction pipeline did not mint.</td></tr>
+          <tr><td><code>UnapprovedPayloadError</code></td><td>A provider receives a payload the guard never approved, including a structurally identical look-alike.</td></tr>
+          <tr><td><code>VaultMismatchError</code></td><td><code>rehydrate()</code> receives a vault whose id does not match the payload's <code>vaultRef</code>.</td></tr>
+          <tr><td><code>UnresolvedPlaceholderError</code></td><td>A token in the reply is not in the bound vault — for example, a model-invented token.</td></tr>
+          <tr><td><code>MissingApiKeyError</code></td><td><code>makeProvider</code> gets no usable key and <code>allowOffline</code> is not <code>true</code>.</td></tr>
+          <tr><td><code>ProviderTimeoutError</code></td><td>An OpenRouter request exceeds its deadline (30 seconds by default).</td></tr>
+          <tr><td><code>ProviderResponseTooLargeError</code></td><td>A reply exceeds the response cap (1 MiB by default), before JSON parsing.</td></tr>
+          <tr><td><code>MalformedProviderResponseError</code></td><td>A reply has no string assistant message at <code>choices[0].message.content</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Non-2xx HTTP responses from the OpenRouter adapter reject with an <code>Error</code> carrying the status and body; the typed errors above cover the boundary, timeout, size and malformed-reply paths.</p>
+
+    <h2 id="deployment">Deployment guidance</h2>
+    <p>privacy-core is a library, not a service. It ships no server component: you bring the provider, the review screen and, if you need one, the proxy that holds the model key.</p>
+
+    <h3>Run the boundary where the text is</h3>
+    <p>The promise is that real values stay on the user's device. That holds when redaction runs in the client before the provider call. The package also runs on Node 22.13+, but if you run it on a server, the vault is server memory and the “on-device” framing no longer describes your architecture.</p>
+
+    <h3>Keep the provider key server-side</h3>
+    <p>The library is environment-agnostic: you pass the key in, and it never reads one from the environment for you. The bundled demo keeps <code>OPENROUTER_API_KEY</code> server-side and injects it through a same-origin dev proxy; the key never reaches the browser bundle. A real key shipped to the browser is a bug.</p>
+    <pre><code>import { makeProvider } from "@gainratio/privacy-core";
+
+const { provider, label } = makeProvider({
+  apiKey: process.env.OPENROUTER_API_KEY, // server-side only
+  model: "openai/gpt-4o-mini",
+});</code></pre>
+    <p>A browser path can point the endpoint at your own same-origin proxy. The sentinel key only selects the OpenRouter code path; it is not a secret.</p>
+    <pre><code>const { provider } = makeProvider({
+  apiKey: "via-proxy", // non-secret sentinel, not the real key
+  endpoint: "/api/chat",
+});</code></pre>
+
+    <h3>Hold one vault per conversation</h3>
+    <p>Create a <code>Vault</code> for the interaction and keep it until you have rehydrated the reply. Pass <code>payload.vaultRef</code> to <code>rehydrate</code>; never share a vault between users. The vault clears on reload, so a refresh starts a new one.</p>
+
+    <h3>Put the preview in front of approve</h3>
+    <p>The review step is part of the security boundary. Render <code>pending.redactedText</code> exactly as it will be sent, let the person read it, and call <code>approve</code> only after that. The detector catches the listed formats; the person catches the rest.</p>
+
+    <h3>Treat the origin as part of the boundary</h3>
+    <p>The vault and any browser-held signing key are readable by anything that can run code on your origin: a malicious extension, an XSS bug or a compromised dependency. Keep third-party scripts off the origin, keep the app on HTTPS, and do not treat the library as a substitute for a clean client.</p>
+
+    <h3>Respect the budgets</h3>
+    <p>Input is capped at 512 KiB of UTF-8. OpenRouter requests default to a 30-second deadline and a 1 MiB response cap. Override <code>timeoutMs</code> or <code>maxResponseBytes</code> only with a deliberate, tested budget; timeout and overflow failures are typed and fail closed.</p>
+
+    <h3>Decide whether you need receipts</h3>
+    <p>Receipts are opt-in. Give <code>guardedProvider</code> a governance context and every allow or deny is signed into a receipt containing a SHA-256 hash of the text, the decision and the provider name — never the text itself. Persisting those receipts is your job; the sinks are wired, durable storage is planned. Receipts are tamper-evident, not a statement that the signing host was uncompromised.</p>
+
+    <h3>Ship with the checks green</h3>
+    <p>The repository's gate is <code>pnpm gate</code>: lint, type checks, unit tests with 100% coverage thresholds, the Playwright wire proof and the build. The e2e test drives the real demo in Chromium, intercepts the outbound request and fails if any real value appears in it. Run it before you change how your app builds its provider request.</p>
+
+    <h2 id="limits">Key limits</h2>
+    <ul class="checks">
+      <li>Only the formats in the detection table are found. General names, addresses and free text are not detected.</li>
+      <li>Redaction is not anonymisation; context can still re-identify a person.</li>
+      <li>The vault is in-memory and clears on reload. There is no shipped encrypted persistence.</li>
+      <li>A compromised device, extension, XSS bug or dependency can read the vault and a browser-held signing key.</li>
+      <li>The library does not control what the AI provider does with the labelled text it receives.</li>
+      <li>Input is capped at 512 KiB per call; split larger documents into reviewed sections.</li>
+    </ul>
+    <p><a href="/security/">The security page</a> covers the threat model, the test evidence and private reporting.</p>
+
+    <h2>Next</h2>
+    <ul>
+      <li><a href="/examples/">Copyable examples from the README and API docs</a></li>
+      <li><a href="/security/">Threat model, boundaries and reporting</a></li>
+      <li><a href="https://github.com/gainratio/privacy-core/blob/main/docs/API.md">The full API reference on GitHub</a></li>
+      <li><a href="https://github.com/gainratio/privacy-core/blob/main/docs/ARCHITECTURE.md">Architecture and the test evidence</a></li>
+    </ul>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <span>© 2026 GainRatio · <a href="https://gainratio.com/">gainratio.com</a></span>
+    <span><a href="https://github.com/gainratio/privacy-core">GitHub</a> · <a href="https://www.npmjs.com/package/@gainratio/privacy-core">npm</a> · <a href="https://open-source.gainratio.com/">Open source hub</a> · <a href="/security/">Security</a></span>
+  </div>
+</footer>
+</body>
+</html>
