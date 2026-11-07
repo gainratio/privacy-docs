@@ -331,7 +331,7 @@ const csp = headers.match(/Content-Security-Policy:\s*(.+)/i)?.[1] ?? "";
 for (const directive of [
   "default-src 'none'",
   "base-uri 'none'",
-  "script-src 'none'",
+  "script-src 'self'",
   "style-src 'self'",
   "img-src 'self'",
   "frame-ancestors 'none'",
