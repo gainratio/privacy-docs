@@ -1,26 +1,45 @@
-# privacy.gainratio.com
+# privacy.gainratio.com — Documentation for `privacy-core`
 
-Source for the privacy-core documentation site: landing page, docs, examples, and security.
+Static documentation site for [**`@gainratio/privacy-core`**](https://www.npmjs.com/package/@gainratio/privacy-core) (`gainratio/privacy-core`), the on-device redaction and outgoing-text guard library.
 
-The source of truth for every product claim is the [privacy-core repository](https://github.com/gainratio/privacy-core): README, `package.json`, `SECURITY.md`, and `docs/`. No external fonts, scripts, trackers, or images are used; the only image is the local SVG favicon.
+**What problem this solves.** When users paste messages into an AI feature, they routinely include credit card numbers, emails, phone numbers, or government IDs without realizing those details are about to leave their device. `privacy-core` finds those sensitive fields locally, swaps each one for a placeholder label (`[CARD_1]`, `[EMAIL_1]`), shows your app the exact outgoing text for review, and sends nothing until your code explicitly calls `approve()` — then puts the real values back into the AI's reply locally.
 
-## Check
+**What this repo is.** The plain HTML and CSS documentation site served at [privacy.gainratio.com](https://privacy.gainratio.com/) — zero client-side JavaScript, zero external fonts, and zero trackers.
+
+## Run locally in one command
 
 ```sh
-node scripts/check.mjs
-# or
-npm run check
+npm run gate
 ```
 
-The check fails on missing metadata, JSON-LD, HTML structure, broken internal links or anchors, missing sitemap entries, missing assets, executable inline code, external resources, or a weakened CSP. The 404 is intentionally `noindex`, has no canonical or JSON-LD, and is not in the sitemap.
+That builds the clean `dist/` directory and verifies every page's HTML structure, links, anchors, JSON-LD metadata, `llms.txt`, and strict Content-Security-Policy headers.
 
-## Deploy
+---
 
-Run `npm run build && npm run check` to build `dist/` (containing only the public web assets) and apply `_headers` at the edge. The `_headers` file uses Cloudflare Pages syntax. One deployment path, if your Pages project is named `privacy-docs`:
+## Under the hood (for developers)
+
+### Site map & architecture
+
+| Path | Purpose |
+|---|---|
+| `index.html` | Landing page, before/after redaction walkthrough, quickstart, and boundaries |
+| `docs/index.html` | Install (`@gainratio/privacy-core` `0.3.2`), 11 entity detectors, `EgressGuard`, `rehydrate()`, limits |
+| `examples/index.html` | Copyable redaction + approval + rehydration examples for Node and browsers |
+| `security/index.html` | Threat model, free-text residual risk, memory lifecycle, OIDC provenance, private reporting |
+| `404.html` | Not-found recovery page (`noindex,follow`, excluded from `sitemap.xml`) |
+| `llms.txt` | Structured plain-text index for AI coding assistants and crawlers |
+| `_headers` | Strict CSP (`default-src 'none'`), HSTS, COOP/CORP, and immutable `/assets/*` caching |
+| `scripts/build.mjs` | Explicit allowlist copier into `dist/` |
+| `scripts/check.mjs` | Zero-dependency HTML structure, SEO, link/anchor, and CSP contract gate |
+| `scripts/live-probe.mjs` | Secret-free production probe (`https://privacy.gainratio.com`) |
+
+### Deploy
 
 ```sh
-npm run build && npm run check
+npm run gate
 npx wrangler pages deploy dist --project-name privacy-docs --branch main
 ```
 
-Attach `privacy.gainratio.com` in the host's dashboard, then verify the response headers and the canonical URLs after the deploy. `_headers` is only honored by hosts that support that file format.
+- **Library source:** [github.com/gainratio/privacy-core](https://github.com/gainratio/privacy-core)
+- **Open-source hub:** [open-source.gainratio.com/privacy-core/](https://open-source.gainratio.com/privacy-core/)
+- **License:** [MIT](./LICENSE)

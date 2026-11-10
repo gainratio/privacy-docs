@@ -357,15 +357,40 @@ for (const asset of [
   "favicon.svg",
   "robots.txt",
   "sitemap.xml",
+  "llms.txt",
   "_headers",
   "scripts/check.mjs",
 ]) {
   if (!existsSync(join(ROOT, asset))) fail(`missing ${asset}`);
 }
+if (existsSync(join(ROOT, "llms.txt"))) {
+  const llms = read("llms.txt");
+  const hasHttpsUrl = (expectedHost, expectedPath = "/") => {
+    for (const [raw] of llms.matchAll(/https?:\/\/[^\s)>\]"`]+/g)) {
+      try {
+        const parsed = new URL(raw.replace(/[.,;:]+$/, ""));
+        if (parsed.protocol === "https:" && parsed.hostname === expectedHost && parsed.pathname === expectedPath) {
+          return true;
+        }
+      } catch {
+        // ignore non-URL tokens
+      }
+    }
+    return false;
+  };
+  for (const loc of expectedLocs) {
+    const target = new URL(loc);
+    if (!hasHttpsUrl(target.hostname, target.pathname)) fail(`llms.txt: missing ${loc}`);
+  }
+  if (!hasHttpsUrl("open-source.gainratio.com", "/")) {
+    fail("llms.txt: missing https://open-source.gainratio.com/");
+  }
+}
 
 const distDir = join(ROOT, "dist");
 if (existsSync(distDir)) {
-  for (const forbidden of ["package.json", "README.md", "SECURITY.md", "LICENSE", "scripts"]) {
+  if (!existsSync(join(distDir, "llms.txt"))) fail("dist/: missing llms.txt");
+  for (const forbidden of ["package.json", "README.md", "CLAUDE.md", "SECURITY.md", "LICENSE", "scripts"]) {
     if (readdirSync(distDir).includes(forbidden)) fail(`dist/: leaked non-public file ${forbidden}`);
   }
 }
