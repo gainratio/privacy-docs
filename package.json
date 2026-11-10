@@ -1,9 +1,13 @@
 {
   "name": "privacy-docs",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Standalone documentation site for @gainratio/privacy-core (privacy.gainratio.com)",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs",
+    "gate": "npm run build && npm run check",
+    "probe:live": "node scripts/live-probe.mjs"
   }
 }

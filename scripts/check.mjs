@@ -357,15 +357,26 @@ for (const asset of [
   "favicon.svg",
   "robots.txt",
   "sitemap.xml",
+  "llms.txt",
   "_headers",
   "scripts/check.mjs",
 ]) {
   if (!existsSync(join(ROOT, asset))) fail(`missing ${asset}`);
 }
+if (existsSync(join(ROOT, "llms.txt"))) {
+  const llms = read("llms.txt");
+  for (const loc of expectedLocs) {
+    if (!llms.includes(loc)) fail(`llms.txt: missing ${loc}`);
+  }
+  if (!llms.includes("https://open-source.gainratio.com/")) {
+    fail("llms.txt: missing https://open-source.gainratio.com/");
+  }
+}
 
 const distDir = join(ROOT, "dist");
 if (existsSync(distDir)) {
-  for (const forbidden of ["package.json", "README.md", "SECURITY.md", "LICENSE", "scripts"]) {
+  if (!existsSync(join(distDir, "llms.txt"))) fail("dist/: missing llms.txt");
+  for (const forbidden of ["package.json", "README.md", "CLAUDE.md", "SECURITY.md", "LICENSE", "scripts"]) {
     if (readdirSync(distDir).includes(forbidden)) fail(`dist/: leaked non-public file ${forbidden}`);
   }
 }

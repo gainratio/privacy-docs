@@ -1,0 +1,17 @@
+# privacy-core (@gainratio/privacy-core) — Keep Sensitive Text Out of AI Calls
+
+> TypeScript library (`@gainratio/privacy-core` v0.3.2 on npm) that swaps card numbers, emails, SSNs, IBANs, and 7 other identifier types for deterministic labels on-device, enforces an explicit Egress Guard `approve()` boundary before any model call, and restores real values locally in the reply.
+
+- Live Documentation: https://privacy.gainratio.com/
+- Open Source Hub Overview: https://open-source.gainratio.com/privacy-core/
+- Portfolio Hub: https://open-source.gainratio.com/
+- Source Repository: https://github.com/gainratio/privacy-core
+- npm Package: https://www.npmjs.com/package/@gainratio/privacy-core
+- Sitemap: https://privacy.gainratio.com/sitemap.xml
+
+## Documentation Pages
+
+- [Overview & Quickstart](https://privacy.gainratio.com/): On-device redaction, Egress Guard `approve()` review flow, local reply rehydration, supported environments (Node 22.13+ and modern browsers), and explicit non-goals.
+- [API & Entity Reference](https://privacy.gainratio.com/docs/): Install `@gainratio/privacy-core`, all 11 built-in entity detectors (including Luhn card, SSN, and IBAN checksum checks), `redact()`, `EgressGuard`, `rehydrate()`, input size caps (`512 KiB`), and typed errors.
+- [Runnable Examples](https://privacy.gainratio.com/examples/): Copyable end-to-end redaction + approval + rehydration loop, custom entity policies, refusal handling when unapproved text reaches egress, and browser usage.
+- [Security & Threat Model](https://privacy.gainratio.com/security/): What deterministic redaction and Egress Guard guarantee, free-text residual risk boundaries, memory lifecycle, OIDC npm provenance, and private vulnerability reporting.
