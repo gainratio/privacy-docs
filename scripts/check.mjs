@@ -365,10 +365,24 @@ for (const asset of [
 }
 if (existsSync(join(ROOT, "llms.txt"))) {
   const llms = read("llms.txt");
+  const hasHttpsUrl = (expectedHost, expectedPath = "/") => {
+    for (const [raw] of llms.matchAll(/https?:\/\/[^\s)>\]"`]+/g)) {
+      try {
+        const parsed = new URL(raw.replace(/[.,;:]+$/, ""));
+        if (parsed.protocol === "https:" && parsed.hostname === expectedHost && parsed.pathname === expectedPath) {
+          return true;
+        }
+      } catch {
+        // ignore non-URL tokens
+      }
+    }
+    return false;
+  };
   for (const loc of expectedLocs) {
-    if (!llms.includes(loc)) fail(`llms.txt: missing ${loc}`);
+    const target = new URL(loc);
+    if (!hasHttpsUrl(target.hostname, target.pathname)) fail(`llms.txt: missing ${loc}`);
   }
-  if (!llms.includes("https://open-source.gainratio.com/")) {
+  if (!hasHttpsUrl("open-source.gainratio.com", "/")) {
     fail("llms.txt: missing https://open-source.gainratio.com/");
   }
 }
