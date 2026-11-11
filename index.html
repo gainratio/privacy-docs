@@ -12,8 +12,9 @@
 <meta property="og:title" content="privacy-core — keep sensitive text out of AI calls">
 <meta property="og:description" content="Redact on the device, approve the exact outgoing text, and restore real values from the reply locally.">
 <meta property="og:url" content="https://privacy.gainratio.com/">
+<meta property="og:image" content="https://privacy.gainratio.com/assets/poster.png">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/site.css?v=20261107">
+<link rel="stylesheet" href="/assets/site.css?v=20261110">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -37,6 +38,18 @@
     "name": "GainRatio Open Source",
     "url": "https://open-source.gainratio.com/"
   }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoObject",
+  "name": "privacy-core — On-Device PII Redaction & Approval Walkthrough",
+  "description": "Unedited browser capture of @gainratio/privacy-core swapping sensitive identifiers for labels on-device, sealing signed allow/deny receipts, restoring real values locally, and rejecting unapproved sends.",
+  "thumbnailUrl": "https://privacy.gainratio.com/assets/poster.png",
+  "uploadDate": "2026-11-10",
+  "duration": "PT16S",
+  "contentUrl": "https://privacy.gainratio.com/assets/demo.mp4"
 }
 </script>
 </head>
@@ -88,6 +101,21 @@
           <p class="edge-note"><strong>“Maria Lopez” is still there.</strong> The library does not generally detect names. The preview is what lets a reviewer catch the rest.</p>
         </div>
       </aside>
+    </div>
+  </section>
+
+  <section class="band video-band" aria-labelledby="walkthrough-heading">
+    <div class="wrap">
+      <div class="video-band-head">
+        <p class="eyebrow">Live walkthrough · 16 seconds</p>
+        <h2 id="walkthrough-heading">Watch the approval boundary run in the browser.</h2>
+      </div>
+      <div class="player">
+        <video controls autoplay muted loop playsinline width="1280" height="720" preload="metadata" poster="/assets/poster.png" src="/assets/demo.mp4">
+          Your browser does not support HTML5 video. <a href="/assets/demo.mp4">Download the 16-second MP4 walkthrough</a>.
+        </video>
+      </div>
+      <p class="player-caption">Unedited browser capture of <code>@gainratio/privacy-core</code>: on-device detection and placeholder replacement, explicit human approval with signed allow/deny audit entries, local restoration of real values, and rejection of unapproved sends. <a href="/assets/demo.mp4">Direct MP4 ↗</a></p>
     </div>
   </section>
 
