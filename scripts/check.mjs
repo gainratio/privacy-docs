@@ -217,8 +217,16 @@ for (const page of PAGES) {
   if (/\sstyle\s*=/i.test(html)) fail(`${label}: inline style attribute`);
   if (/<style\b/i.test(html)) fail(`${label}: inline style element`);
   if (/\son[a-z]+\s*=/i.test(html)) fail(`${label}: inline event handler`);
-  if (/<(img|iframe|object|embed|video|audio|canvas)\b/i.test(html)) {
-    fail(`${label}: embedded media or image element`);
+  if (/<(img|iframe|object|embed|audio|canvas)\b/i.test(html)) {
+    fail(`${label}: disallowed embedded element`);
+  }
+  for (const video of html.matchAll(/<video\b[^>]*>/gi)) {
+    for (const mediaAttr of ["src", "poster"]) {
+      const val = attr(video[0], mediaAttr) ?? "";
+      if (!val.startsWith("/assets/") || !localTarget(val.split("?")[0])) {
+        fail(`${label}: video ${mediaAttr} must resolve to a local /assets/ file (${val || "missing"})`);
+      }
+    }
   }
   if (/\ssrc="https?:/i.test(html)) fail(`${label}: remote script or media source`);
 
@@ -334,6 +342,7 @@ for (const directive of [
   "script-src 'self'",
   "style-src 'self'",
   "img-src 'self'",
+  "media-src 'self'",
   "frame-ancestors 'none'",
   "form-action 'none'",
   "object-src 'none'",
